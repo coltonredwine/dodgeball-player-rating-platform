@@ -2,7 +2,7 @@ services:
   - type: web
     name: player-scores
     env: node
-    plan: starter
+    plan: free
     buildCommand: npm install && npm run prisma:generate && npm run build
     startCommand: npm run start
     envVars:
