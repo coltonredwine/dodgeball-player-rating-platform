@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Stonewall Dodgeball Ratings
 
-## Getting Started
+Private player-rating platform with passcode auth, role-based backend access, CSV import/export, and autosave every 20 seconds.
 
-First, run the development server:
+## Roles
+
+- `rater`: can rate players only.
+- `admin`: read-only backend access (completion view, players/raters tables, CSV downloads) plus rating access.
+- `superadmin`: single account with full controls and rating access.
+
+## Local setup with Docker (recommended)
+
+1. Start Postgres:
+
+```bash
+docker compose up -d
+```
+
+2. Copy `.env.example` to `.env` and set at least:
+
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/player_scores?schema=public"
+SESSION_SECRET="paste-output-of-openssl-rand-base64-48"
+SUPERADMIN_EMAIL="coltonredwine@gmail.com"
+SUPERADMIN_PASSCODE="your-passcode"
+```
+
+Generate `SESSION_SECRET`:
+
+```bash
+openssl rand -base64 48
+```
+
+3. Install dependencies, migrate, seed, and run:
+
+```bash
+npm install
+npm run prisma:generate
+npx prisma migrate dev --name init
+npm run setup:init
+npm run dev
+```
+
+Open [http://localhost:3000/login](http://localhost:3000/login).
+
+Stop the database when done:
+
+```bash
+docker compose down
+```
+
+## Local Setup (without Docker)
+
+1. Copy `.env.example` to `.env` and fill values.
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Generate Prisma client:
+
+```bash
+npm run prisma:generate
+```
+
+4. Create and run Prisma migrations against your Postgres database:
+
+```bash
+npx prisma migrate dev --name init
+```
+
+5. Initialize default app data (one-time per environment):
+
+```bash
+npm run setup:init
+```
+
+6. Start dev server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## CSV Formats
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Player import: `First Name,Last Name`
+- Rater import: `Name,Email,is_admin` (`is_admin` optional)
+- Invite export: `Name,Email,Passcode,Expires At`
+- Rater export: `First Name,Last Name,Power,Accuracy,Intimidation,Catching,Evasion,Nerve,I don't know this player`
+- All-raters export adds `Rater Name,Rater Email`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Render Deployment
 
-## Learn More
+Use `render.yaml` to provision:
+- Web service (`player-scores`)
+- Postgres database (`player-scores-db`)
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Required env vars:
+- `DATABASE_URL`
+- `SESSION_SECRET`
+- `SUPERADMIN_EMAIL`
+- `SUPERADMIN_PASSCODE`

@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SubmissionStatus {
+  in_progress
+  submitted
+}
+
+model Player {
+  id        String         @id @default(cuid())
+  firstName String
+  lastName  String
+  active    Boolean        @default(true)
+  ratings   PlayerRating[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([lastName, firstName])
+}
+
+model Rater {
+  id          String             @id @default(cuid())
+  name        String
+  email       String             @unique
+  isAdmin     Boolean            @default(false)
+  active      Boolean            @default(true)
+  inviteCodes InviteCode[]
+  submissions RatingSubmission[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model InviteCode {
+  id         String   @id @default(cuid())
+  raterId    String
+  codeHash   String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  rater      Rater    @relation(fields: [raterId], references: [id], onDelete: Cascade)
+
+  @@index([raterId, expiresAt])
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model RatingSubmission {
+  id              String           @id @default(cuid())
+  raterId         String
+  seasonLabel     String
+  status          SubmissionStatus @default(in_progress)
+  submittedAt     DateTime?
+  lastAutosavedAt DateTime?
+  lastSyncedAt    DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  rater           Rater            @relation(fields: [raterId], references: [id], onDelete: Cascade)
+  ratings         PlayerRating[]
+
+  @@unique([raterId, seasonLabel])
+  @@index([status])
+}
+
+model PlayerRating {
+  id             String           @id @default(cuid())
+  submissionId   String
+  playerId       String
+  power          Int?
+  accuracy       Int?
+  intimidation   Int?
+  catching       Int?
+  evasion        Int?
+  nerve          Int?
+  unknownPlayer  Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  submission     RatingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  player         Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, playerId])
+}
