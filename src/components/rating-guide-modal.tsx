@@ -114,6 +114,9 @@ export function RatingGuideModal({ userKey }: Props) {
               <li>Consistency across raters is more important than perfection.</li>
               <li>If unsure between two numbers, stay closer to average unless impact is clear.</li>
             </ul>
+            <p className="mt-3 text-sm font-semibold text-red-700">
+              If you are unsure about a player, mark them as unknown. Do not guess a rating.
+            </p>
           </div>
 
           <div>

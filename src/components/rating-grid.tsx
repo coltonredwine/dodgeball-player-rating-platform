@@ -324,18 +324,23 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
         <table className="min-w-full border-collapse text-sm">
           <thead className="sticky top-0 z-20 bg-zinc-100">
             <tr>
-              <th className="px-2 py-2 text-left sm:px-3">First</th>
-              <th className="px-2 py-2 text-left sm:px-3">Last</th>
+              <th className="px-2 py-2 text-left sm:px-3">Player</th>
               {METRIC_FIELDS.map((field) => (
-                <th key={field} className="px-1 py-2 text-left capitalize sm:px-2">
-                  <span className="hidden sm:inline">{field}</span>
-                  <span className="sm:hidden">{field.slice(0, 3)}</span>
-                  <MetricHelpButton label={field} description={METRIC_HELP[field]} />
+                <th key={field} className="px-1 py-2 text-center capitalize sm:px-2 sm:text-left">
+                  <div className="flex items-center justify-center sm:justify-start">
+                    <span className="hidden sm:inline">{field}</span>
+                    <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[11px] leading-none sm:hidden">
+                      {field}
+                    </span>
+                    <MetricHelpButton label={field} description={METRIC_HELP[field]} />
+                  </div>
                 </th>
               ))}
               <th className="px-2 py-2 text-left sm:px-3">
                 <span className="hidden sm:inline">I don&apos;t know</span>
-                <span className="sm:hidden">Unknown</span>
+                <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[11px] leading-none sm:hidden">
+                  Unknown
+                </span>
               </th>
             </tr>
           </thead>
@@ -349,8 +354,11 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                     complete ? "bg-[#dfe8df] text-zinc-600" : "bg-white"
                   }`}
                 >
-                  <td className="px-2 py-2 sm:px-3">{row.firstName}</td>
-                  <td className="px-2 py-2 sm:px-3">{row.lastName}</td>
+                  <td className="px-2 py-2 sm:px-3">
+                    <span className="block max-w-[120px] text-xs leading-tight sm:max-w-none sm:text-sm">
+                      {row.firstName} {row.lastName}
+                    </span>
+                  </td>
                   {METRIC_FIELDS.map((metric, metricIndex) => (
                     <td className="px-1 py-2 sm:px-2" key={metric}>
                       <input
@@ -364,7 +372,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                         value={row[metric] ?? ""}
                         onChange={(event) => updateMetric(rowIndex, metric, event.target.value)}
                         onKeyDown={(event) => handleMetricKeyDown(event, rowIndex, metricIndex)}
-                        className="w-10 rounded border border-zinc-300 px-1 py-2 text-center text-base disabled:bg-zinc-100 sm:w-12"
+                        className="w-9 rounded border border-zinc-300 px-1 py-2 text-center text-base disabled:bg-zinc-100 sm:w-12"
                         aria-label={`${row.firstName} ${row.lastName} ${metric}`}
                       />
                     </td>
