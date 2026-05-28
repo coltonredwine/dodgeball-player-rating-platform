@@ -28,10 +28,18 @@ function isCompleteSavedRow(rating: {
   return values.every((value) => typeof value === "number" && value >= 1 && value <= 7);
 }
 
-export default async function BackendPage() {
+export default async function BackendPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ importError?: string; importWarnings?: string }>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!isAdminLike(session)) redirect("/rate");
+
+  const query = await searchParams;
+  const importError = query.importError;
+  const importWarnings = query.importWarnings;
 
   const [players, raters, submissions] = await Promise.all([
     prisma.player.findMany({ orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }),
@@ -67,6 +75,18 @@ export default async function BackendPage() {
             </Link>
           </div>
         </div>
+
+        {importError ? (
+          <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            Import failed: {importError}
+          </p>
+        ) : null}
+        {importWarnings ? (
+          <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Import finished with {importWarnings} row warning(s). Check your CSV and re-import if
+            needed.
+          </p>
+        ) : null}
 
         {superadmin && (
           <div className="grid gap-4 md:grid-cols-2">

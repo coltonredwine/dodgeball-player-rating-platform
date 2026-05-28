@@ -4,7 +4,7 @@ export function parseCsv(text: string) {
   const parsed = Papa.parse<Record<string, string>>(text, {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (header) => header.trim(),
+    transformHeader: (header) => header.trim().replace(/^\uFEFF/, ""),
   });
   if (parsed.errors.length > 0) {
     throw new Error(parsed.errors[0].message);

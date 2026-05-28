@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSuperadmin } from "@/lib/api-auth";
 import { parseCsv } from "@/lib/csv";
+import { backendRedirect } from "@/lib/request-url";
 
 type PlayerImportRow = { firstName: string; lastName: string };
 
@@ -51,9 +52,9 @@ export async function POST(request: Request) {
     ),
   ]);
 
-  const redirectUrl = new URL("/backend", request.url);
+  const redirectParams: Record<string, string> = {};
   if (errors.length) {
-    redirectUrl.searchParams.set("importWarnings", String(errors.length));
+    redirectParams.importWarnings = String(errors.length);
   }
-  return NextResponse.redirect(redirectUrl);
+  return backendRedirect(request, redirectParams);
 }

@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { requireSuperadmin } from "@/lib/api-auth";
+import { backendRedirect } from "@/lib/request-url";
 import { setBooleanSetting } from "@/lib/settings";
 
 export async function POST(request: Request) {
@@ -9,5 +9,5 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const scoringOpen = formData.get("scoringOpen") === "true";
   await setBooleanSetting("scoring_open", scoringOpen);
-  return NextResponse.redirect(new URL("/backend", request.url));
+  return backendRedirect(request);
 }
