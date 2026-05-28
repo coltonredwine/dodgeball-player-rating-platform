@@ -8,6 +8,7 @@ type PlayerRow = {
   playerId: string;
   firstName: string;
   lastName: string;
+  link: string | null;
   power: number | null;
   accuracy: number | null;
   intimidation: number | null;
@@ -40,6 +41,36 @@ function isValidScore(value: number | null): value is number {
   return value !== null && value >= 1 && value <= 7;
 }
 
+function mergePlayerMetadata(stored: PlayerRow[], initial: PlayerRow[]) {
+  const meta = new Map(initial.map((row) => [row.playerId, row]));
+  return stored.map((row) => {
+    const source = meta.get(row.playerId);
+    return {
+      ...row,
+      firstName: source?.firstName ?? row.firstName,
+      lastName: source?.lastName ?? row.lastName,
+      link: source?.link ?? row.link ?? null,
+    };
+  });
+}
+
+function PlayerName({ row }: { row: PlayerRow }) {
+  const label = `${row.firstName} ${row.lastName}`;
+  if (row.link) {
+    return (
+      <a
+        href={row.link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-800 underline decoration-blue-800/40 underline-offset-2 hover:text-blue-950"
+      >
+        {label}
+      </a>
+    );
+  }
+  return <>{label}</>;
+}
+
 function isRowComplete(row: PlayerRow) {
   if (row.unknownPlayer) return true;
   return METRIC_FIELDS.every((field) => isValidScore(row[field]));
@@ -61,7 +92,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
     if (!pending) return initialRows;
     try {
       const parsed = JSON.parse(pending) as PlayerRow[];
-      return Array.isArray(parsed) ? parsed : initialRows;
+      return Array.isArray(parsed) ? mergePlayerMetadata(parsed, initialRows) : initialRows;
     } catch {
       return initialRows;
     }
@@ -368,7 +399,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                 >
                   <td className="px-2 py-2 sm:px-3">
                     <span className="block max-w-[120px] text-xs leading-tight sm:max-w-none sm:text-sm">
-                      {row.firstName} {row.lastName}
+                      <PlayerName row={row} />
                     </span>
                   </td>
                   {METRIC_FIELDS.map((metric, metricIndex) => (

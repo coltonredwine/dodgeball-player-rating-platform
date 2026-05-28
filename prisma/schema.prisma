@@ -16,6 +16,7 @@ model Player {
   id        String         @id @default(cuid())
   firstName String
   lastName  String
+  link      String?
   active    Boolean        @default(true)
   ratings   PlayerRating[]
   createdAt DateTime       @default(now())

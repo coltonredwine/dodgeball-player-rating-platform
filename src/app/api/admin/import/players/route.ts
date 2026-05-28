@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSuperadmin } from "@/lib/api-auth";
-import { parseCsv } from "@/lib/csv";
+import { parseCsv, parseOptionalLink } from "@/lib/csv";
 import { backendRedirect } from "@/lib/request-url";
 
-type PlayerImportRow = { firstName: string; lastName: string };
+type PlayerImportRow = {
+  firstName: string;
+  lastName: string;
+  link: string | null;
+};
+
+function getLink(row: Record<string, string>) {
+  return (row["Link"] ?? row["link"] ?? row["URL"] ?? row["url"] ?? "").trim();
+}
 
 export async function POST(request: Request) {
   const auth = await requireSuperadmin();
@@ -19,16 +27,30 @@ export async function POST(request: Request) {
   const text = await file.text();
   const rows = parseCsv(text);
   const errors: string[] = [];
-  const normalized: PlayerImportRow[] = rows
-    .map((row: Record<string, string>, index: number) => {
-      const firstName = (row["First Name"] ?? row["First"] ?? row["first_name"] ?? "").trim();
-      const lastName = (row["Last Name"] ?? row["Last"] ?? row["last_name"] ?? "").trim();
-      if (!firstName || !lastName) {
-        errors.push(`Row ${index + 2}: missing first or last name`);
-      }
-      return { firstName, lastName };
-    })
-    .filter((row: PlayerImportRow) => row.firstName && row.lastName);
+  const normalized: PlayerImportRow[] = [];
+
+  for (const [index, row] of rows.entries()) {
+    const firstName = (row["First Name"] ?? row["First"] ?? row["first_name"] ?? "").trim();
+    const lastName = (row["Last Name"] ?? row["Last"] ?? row["last_name"] ?? "").trim();
+    const linkRaw = getLink(row);
+
+    if (!firstName || !lastName) {
+      errors.push(`Row ${index + 2}: missing first or last name`);
+      continue;
+    }
+
+    const link = linkRaw ? parseOptionalLink(linkRaw) : null;
+    if (linkRaw && !link) {
+      errors.push(`Row ${index + 2}: invalid Link URL`);
+      continue;
+    }
+
+    normalized.push({
+      firstName,
+      lastName,
+      link,
+    });
+  }
 
   if (normalized.length === 0) {
     return NextResponse.json({ error: "No valid rows found", details: errors }, { status: 400 });
@@ -41,11 +63,17 @@ export async function POST(request: Request) {
         where: {
           id: `${row.firstName.toLowerCase()}-${row.lastName.toLowerCase()}`,
         },
-        update: { firstName: row.firstName, lastName: row.lastName, active: true },
+        update: {
+          firstName: row.firstName,
+          lastName: row.lastName,
+          link: row.link,
+          active: true,
+        },
         create: {
           id: `${row.firstName.toLowerCase()}-${row.lastName.toLowerCase()}`,
           firstName: row.firstName,
           lastName: row.lastName,
+          link: row.link,
           active: true,
         },
       }),

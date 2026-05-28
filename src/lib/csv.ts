@@ -26,7 +26,20 @@ export function rowsToCsv(headers: string[], rows: Array<Array<string | number |
   return lines.join("\n");
 }
 
-export const PLAYER_IMPORT_HEADERS = ["First Name", "Last Name"] as const;
+export const PLAYER_IMPORT_HEADERS = ["First Name", "Last Name", "Link"] as const;
+
+export function parseOptionalLink(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 export const RATER_IMPORT_HEADERS = [
   "Name",
   "Email",

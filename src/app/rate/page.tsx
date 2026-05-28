@@ -51,6 +51,7 @@ export default async function RatePage() {
       playerId: player.id,
       firstName: player.firstName,
       lastName: player.lastName,
+      link: player.link,
       power: row?.power ?? null,
       accuracy: row?.accuracy ?? null,
       intimidation: row?.intimidation ?? null,

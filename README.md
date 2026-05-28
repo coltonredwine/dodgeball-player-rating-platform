@@ -84,7 +84,7 @@ npm run dev
 
 ## CSV Formats
 
-- Player import: `First Name,Last Name`
+- Player import: `First Name,Last Name,Link` (`Link` optional). When set, the player name on the rating grid links out in a new tab.
 - Rater import: `Name,Email,is_admin,Passcode,Expires At` (`is_admin`, `Passcode`, and `Expires At` optional). Set `Passcode` (and optionally `Expires At`) on import to create or replace login codes. Without `Expires At`, the passcode expires one year from import. Re-importing without a passcode leaves existing passcodes unchanged.
 - Rater export: `First Name,Last Name,Power,Accuracy,Intimidation,Catching,Evasion,Nerve,I don't know this player`
 - All-raters export adds `Rater Name,Rater Email`

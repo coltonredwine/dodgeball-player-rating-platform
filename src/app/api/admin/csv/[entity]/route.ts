@@ -38,7 +38,7 @@ export async function GET(
       where: { active: true },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     });
-    const rows = players.map((p) => [p.firstName, p.lastName]);
+    const rows = players.map((p) => [p.firstName, p.lastName, p.link ?? ""]);
     return csvDownloadResponse("players-current.csv", rowsToCsv(headers, rows));
   }
 
