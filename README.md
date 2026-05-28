@@ -85,8 +85,7 @@ npm run dev
 ## CSV Formats
 
 - Player import: `First Name,Last Name`
-- Rater import: `Name,Email,is_admin,Passcode,Expires At` (`is_admin`, `Passcode`, and `Expires At` optional). If `Passcode` is set, any existing passcodes for that rater are replaced. Without `Expires At`, the passcode expires one year from import. Re-importing without a passcode leaves existing passcodes unchanged. Passcodes are stored hashed in the database and survive server spin-down; they stop working when expired, revoked, or replaced.
-- Invite export: `Name,Email,Passcode,Expires At`
+- Rater import: `Name,Email,is_admin,Passcode,Expires At` (`is_admin`, `Passcode`, and `Expires At` optional). Set `Passcode` (and optionally `Expires At`) on import to create or replace login codes. Without `Expires At`, the passcode expires one year from import. Re-importing without a passcode leaves existing passcodes unchanged.
 - Rater export: `First Name,Last Name,Power,Accuracy,Intimidation,Catching,Evasion,Nerve,I don't know this player`
 - All-raters export adds `Rater Name,Rater Email`
 

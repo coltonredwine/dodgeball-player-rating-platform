@@ -82,17 +82,6 @@ export default async function BackendPage() {
               entity="raters"
             />
 
-            <form className="space-y-2 rounded border border-zinc-200 p-4" action="/api/admin/passcodes/generate" method="post">
-              <h2 className="font-semibold">Generate invite passcodes</h2>
-              <label className="block text-sm">
-                Expiry date
-                <input className="mt-1 rounded border border-zinc-300 px-2 py-1" type="date" name="expiresAt" required />
-              </label>
-              <button className="block rounded bg-zinc-900 px-3 py-1 text-sm text-white" type="submit">
-                Generate and download CSV
-              </button>
-            </form>
-
             <form className="space-y-2 rounded border border-zinc-200 p-4" action="/api/admin/settings/scoring" method="post">
               <h2 className="font-semibold">Scoring window</h2>
               <label className="flex items-center gap-2 text-sm">
