@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
+import { BackendSettingsForm } from "@/components/backend-settings-form";
 import { CsvImportPanel } from "@/components/csv-import-panel";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isAdminLike, isSuperadmin } from "@/lib/rbac";
-import { getBooleanSetting } from "@/lib/settings";
+import {
+  RATE_PAGE_BUTTON_TITLE_KEY,
+  RATE_PAGE_BUTTON_URL_KEY,
+  getBooleanSetting,
+  getStringSetting,
+} from "@/lib/settings";
 
 function isCompleteSavedRow(rating: {
   unknownPlayer: boolean;
@@ -41,15 +47,18 @@ export default async function BackendPage({
   const importError = query.importError;
   const importWarnings = query.importWarnings;
 
-  const [players, raters, submissions] = await Promise.all([
-    prisma.player.findMany({ orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }),
-    prisma.rater.findMany({ orderBy: { name: "asc" } }),
-    prisma.ratingSubmission.findMany({
-      include: { rater: true, ratings: true },
-      orderBy: { updatedAt: "desc" },
-    }),
-  ]);
-  const scoringOpen = await getBooleanSetting("scoring_open", true);
+  const [players, raters, submissions, scoringOpen, rateButtonTitle, rateButtonUrl] =
+    await Promise.all([
+      prisma.player.findMany({ orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }),
+      prisma.rater.findMany({ orderBy: { name: "asc" } }),
+      prisma.ratingSubmission.findMany({
+        include: { rater: true, ratings: true },
+        orderBy: { updatedAt: "desc" },
+      }),
+      getBooleanSetting("scoring_open", true),
+      getStringSetting(RATE_PAGE_BUTTON_TITLE_KEY, ""),
+      getStringSetting(RATE_PAGE_BUTTON_URL_KEY, ""),
+    ]);
 
   const superadmin = isSuperadmin(session);
   const activePlayersCount = players.filter((player) => player.active).length;
@@ -102,7 +111,10 @@ export default async function BackendPage({
               entity="raters"
             />
 
-            <form className="space-y-2 rounded border border-zinc-200 p-4" action="/api/admin/settings/scoring" method="post">
+            <BackendSettingsForm
+              className="space-y-2 rounded border border-zinc-200 p-4"
+              action="/api/admin/settings/scoring"
+            >
               <h2 className="font-semibold">Scoring window</h2>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="scoringOpen" value="true" defaultChecked={scoringOpen} />
@@ -111,52 +123,116 @@ export default async function BackendPage({
               <button className="block rounded bg-zinc-900 px-3 py-1 text-sm text-white" type="submit">
                 Save scoring setting
               </button>
-            </form>
+            </BackendSettingsForm>
+
+            <BackendSettingsForm
+              className="space-y-2 rounded border border-zinc-200 p-4"
+              action="/api/admin/settings/rate-button"
+            >
+              <h2 className="font-semibold">Rate page button</h2>
+              <p className="text-xs text-zinc-600">
+                Optional link shown at the top of the rating page. Leave both blank to hide.
+              </p>
+              <label className="block text-sm">
+                Button title
+                <input
+                  className="mt-1 w-full rounded border border-zinc-300 px-2 py-1"
+                  type="text"
+                  name="buttonTitle"
+                  defaultValue={rateButtonTitle}
+                  placeholder="e.g. View rules"
+                />
+              </label>
+              <label className="block text-sm">
+                Button URL
+                <input
+                  className="mt-1 w-full rounded border border-zinc-300 px-2 py-1"
+                  type="url"
+                  name="buttonUrl"
+                  defaultValue={rateButtonUrl}
+                  placeholder="https://..."
+                />
+              </label>
+              <button className="block rounded bg-zinc-900 px-3 py-1 text-sm text-white" type="submit">
+                Save rate page button
+              </button>
+            </BackendSettingsForm>
           </div>
         )}
 
         <section>
           <h2 className="text-lg font-semibold">Completion view</h2>
-          <table className="mt-2 min-w-full border-collapse overflow-hidden rounded border border-zinc-200 text-sm">
-            <thead className="bg-zinc-100">
-              <tr>
-                <th className="px-3 py-2 text-left">Rater</th>
-                <th className="px-3 py-2 text-left">Email</th>
-                <th className="px-3 py-2 text-left">Status</th>
-                <th className="px-3 py-2 text-left">Export</th>
-              </tr>
-            </thead>
-            <tbody>
-              {raters.map((rater) => {
-                const latest = latestSubmissionByRater.get(rater.id);
-                const completeSavedCount =
-                  latest?.ratings.filter((rating) => isCompleteSavedRow(rating)).length ?? 0;
-                const hasSavedRows = (latest?.ratings.length ?? 0) > 0;
-                const isFullyComplete =
-                  activePlayersCount > 0 && completeSavedCount === activePlayersCount;
-                let status = "not started";
-                if (latest?.status === "submitted" && isFullyComplete) {
-                  status = "submitted";
-                } else if (hasSavedRows) {
-                  status = "incomplete";
-                } else if (latest) {
-                  status = "in progress";
-                }
-                return (
-                  <tr key={rater.id} className="border-t border-zinc-200">
-                    <td className="px-3 py-2">{rater.name}</td>
-                    <td className="px-3 py-2">{rater.email}</td>
-                    <td className="px-3 py-2 capitalize">{status}</td>
-                    <td className="px-3 py-2">
-                      <Link className="text-blue-700 underline" href={`/api/admin/export/rater/${rater.id}`}>
-                        Download CSV
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="mt-2 overflow-x-auto rounded border border-zinc-200">
+            <table className="w-full border-collapse text-xs">
+              <thead className="bg-zinc-50 text-left text-zinc-700">
+                <tr className="border-b border-zinc-200">
+                  <th className="px-2 py-1.5 font-medium">Rater</th>
+                  <th className="px-2 py-1.5 font-medium">Email</th>
+                  {superadmin ? (
+                    <th className="px-2 py-1.5 font-medium">Passcode</th>
+                  ) : null}
+                  <th className="px-2 py-1.5 font-medium">Status</th>
+                  <th className="px-2 py-1.5 font-medium">Export</th>
+                </tr>
+              </thead>
+              <tbody>
+                {raters.map((rater) => {
+                  const latest = latestSubmissionByRater.get(rater.id);
+                  const completeSavedCount =
+                    latest?.ratings.filter((rating) => isCompleteSavedRow(rating)).length ?? 0;
+                  const hasSavedRows = (latest?.ratings.length ?? 0) > 0;
+                  const isFullyComplete =
+                    activePlayersCount > 0 && completeSavedCount === activePlayersCount;
+                  const isSubmittedComplete =
+                    latest?.status === "submitted" && isFullyComplete;
+
+                  let statusLabel = "not started";
+                  if (isSubmittedComplete) {
+                    statusLabel = "complete";
+                  } else if (hasSavedRows) {
+                    statusLabel = "incomplete";
+                  } else if (latest) {
+                    statusLabel = "in progress";
+                  }
+
+                  return (
+                    <tr key={rater.id} className="border-b border-zinc-100 last:border-b-0">
+                      <td className="px-2 py-1.5 whitespace-nowrap">{rater.name}</td>
+                      <td className="px-2 py-1.5 text-zinc-600">{rater.email}</td>
+                      {superadmin ? (
+                        <td className="px-2 py-1.5 font-mono text-[11px] text-zinc-700">
+                          {rater.passcodeDisplay ?? "—"}
+                        </td>
+                      ) : null}
+                      <td className="px-2 py-1.5 capitalize">
+                        {isSubmittedComplete ? (
+                          <span className="inline-flex items-center gap-1">
+                            Complete <span aria-hidden="true">✅</span>
+                          </span>
+                        ) : (
+                          statusLabel
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {isFullyComplete ? (
+                          <a
+                            className="inline-block rounded bg-blue-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-blue-700"
+                            href={`/api/admin/export/rater/${rater.id}`}
+                          >
+                            Download CSV
+                          </a>
+                        ) : (
+                          <span className="inline-block rounded bg-zinc-200 px-2 py-0.5 text-[11px] font-medium text-zinc-500">
+                            Download CSV
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section className="grid gap-6 md:grid-cols-2">

@@ -15,6 +15,17 @@ export async function setBooleanSetting(key: string, value: boolean) {
   });
 }
 
+export async function setStringSetting(key: string, value: string) {
+  await prisma.appSetting.upsert({
+    where: { key },
+    update: { value },
+    create: { key, value },
+  });
+}
+
+export const RATE_PAGE_BUTTON_TITLE_KEY = "rate_page_button_title";
+export const RATE_PAGE_BUTTON_URL_KEY = "rate_page_button_url";
+
 export async function getStringSetting(key: string, fallback: string) {
   const row = await prisma.appSetting.findUnique({ where: { key } });
   return row?.value ?? fallback;

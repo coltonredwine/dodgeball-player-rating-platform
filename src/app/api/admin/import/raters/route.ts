@@ -113,8 +113,19 @@ export async function POST(request: Request) {
     for (const row of prepared) {
       const rater = await prisma.rater.upsert({
         where: { email: row.email },
-        update: { name: row.name, isAdmin: row.isAdmin, active: true },
-        create: { name: row.name, email: row.email, isAdmin: row.isAdmin, active: true },
+        update: {
+          name: row.name,
+          isAdmin: row.isAdmin,
+          active: true,
+          ...(row.passcode ? { passcodeDisplay: row.passcode } : {}),
+        },
+        create: {
+          name: row.name,
+          email: row.email,
+          isAdmin: row.isAdmin,
+          active: true,
+          passcodeDisplay: row.passcode ?? null,
+        },
       });
 
       if (!row.codeHash || !row.expiresAt) continue;

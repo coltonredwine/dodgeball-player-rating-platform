@@ -26,11 +26,12 @@ model Player {
 }
 
 model Rater {
-  id          String             @id @default(cuid())
-  name        String
-  email       String             @unique
-  isAdmin     Boolean            @default(false)
-  active      Boolean            @default(true)
+  id               String             @id @default(cuid())
+  name             String
+  email            String             @unique
+  passcodeDisplay  String?
+  isAdmin          Boolean            @default(false)
+  active           Boolean            @default(true)
   inviteCodes InviteCode[]
   submissions RatingSubmission[]
   createdAt   DateTime           @default(now())

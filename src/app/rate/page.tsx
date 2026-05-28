@@ -5,7 +5,12 @@ import { RatingGrid } from "@/components/rating-grid";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOrCreateSubmission } from "@/lib/rating";
-import { getBooleanSetting } from "@/lib/settings";
+import {
+  RATE_PAGE_BUTTON_TITLE_KEY,
+  RATE_PAGE_BUTTON_URL_KEY,
+  getBooleanSetting,
+  getStringSetting,
+} from "@/lib/settings";
 
 export default async function RatePage() {
   const session = await getSession();
@@ -15,8 +20,13 @@ export default async function RatePage() {
     redirect("/login");
   }
 
-  const scoringOpen = await getBooleanSetting("scoring_open", true);
+  const [scoringOpen, rateButtonTitle, rateButtonUrl] = await Promise.all([
+    getBooleanSetting("scoring_open", true),
+    getStringSetting(RATE_PAGE_BUTTON_TITLE_KEY, ""),
+    getStringSetting(RATE_PAGE_BUTTON_URL_KEY, ""),
+  ]);
   const canSeeBackend = session.role === "admin" || session.role === "superadmin";
+  const showRateButton = Boolean(rateButtonTitle && rateButtonUrl);
 
   const players = await prisma.player.findMany({
     where: { active: true },
@@ -66,7 +76,19 @@ export default async function RatePage() {
     <main>
       <AppNav canSeeBackend={canSeeBackend} displayName={session.name || session.email} />
       <section className="mx-auto max-w-7xl px-4 py-6">
-        <h1 className="text-2xl font-semibold">Rate Players</h1>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-semibold">Rate Players</h1>
+          {showRateButton ? (
+            <a
+              href={rateButtonUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              {rateButtonTitle}
+            </a>
+          ) : null}
+        </div>
         <RatingGuideModal userKey={session.email} />
         {!scoringOpen && (
           <p className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">

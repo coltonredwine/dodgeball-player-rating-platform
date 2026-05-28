@@ -76,6 +76,11 @@ function isRowComplete(row: PlayerRow) {
   return METRIC_FIELDS.every((field) => isValidScore(row[field]));
 }
 
+function rowHasPartialScores(row: PlayerRow) {
+  if (row.unknownPlayer || isRowComplete(row)) return false;
+  return METRIC_FIELDS.some((field) => row[field] !== null);
+}
+
 function parseScoreInput(raw: string): number | null {
   const cleaned = raw.replace(/\D/g, "").slice(0, 1);
   if (!cleaned) return null;
@@ -355,19 +360,23 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
         <table className="min-w-full border-collapse text-sm">
           <thead className="sticky top-0 z-20 bg-zinc-100">
             <tr>
-              <th className="px-2 py-2 text-left sm:px-3">Player</th>
+              <th className="sticky left-0 z-30 bg-zinc-100 px-2 py-2 text-left shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] sm:px-3">
+                Player
+              </th>
               {METRIC_FIELDS.map((field) => (
                 <th
                   key={field}
-                  className="w-9 px-1 py-1 text-center capitalize align-bottom sm:w-auto sm:px-2 sm:py-2 sm:text-left"
+                  className="w-11 min-w-[2.75rem] px-0.5 py-1 text-center capitalize align-bottom sm:w-auto sm:min-w-0 sm:px-2 sm:py-2 sm:text-left"
                 >
-                  <div className="flex h-20 flex-col items-center justify-end gap-1 overflow-hidden sm:hidden">
-                    <MetricHelpButton
-                      label={field}
-                      description={METRIC_HELP[field]}
-                      compact
-                    />
-                    <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[11px] leading-none">
+                  <div className="flex min-h-[4.75rem] flex-col items-center justify-end gap-1.5 pb-0.5 sm:hidden">
+                    <div className="shrink-0">
+                      <MetricHelpButton
+                        label={field}
+                        description={METRIC_HELP[field]}
+                        compact
+                      />
+                    </div>
+                    <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[10px] leading-none">
                       {field}
                     </span>
                   </div>
@@ -377,9 +386,9 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                   </div>
                 </th>
               ))}
-              <th className="w-10 px-1 py-1 text-center align-bottom sm:w-auto sm:px-3 sm:py-2 sm:text-left">
-                <div className="flex h-20 items-end justify-center overflow-hidden sm:hidden">
-                  <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[11px] leading-none">
+              <th className="w-11 min-w-[2.75rem] px-0.5 py-1 text-center align-bottom sm:w-auto sm:min-w-0 sm:px-3 sm:py-2 sm:text-left">
+                <div className="flex min-h-[4.75rem] items-end justify-center pb-2 sm:hidden">
+                  <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[10px] leading-none">
                     Unknown
                   </span>
                 </div>
@@ -390,19 +399,26 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
           <tbody>
             {rows.map((row, rowIndex) => {
               const complete = isRowComplete(row);
+              const partial = rowHasPartialScores(row);
+              const rowBg = complete ? "bg-[#dfe8df]" : "bg-white";
               return (
                 <tr
                   key={row.playerId}
-                  className={`border-t border-zinc-200 ${
-                    complete ? "bg-[#dfe8df] text-zinc-600" : "bg-white"
+                  className={`border-t border-zinc-200 ${rowBg} ${
+                    complete ? "text-zinc-600" : ""
                   }`}
                 >
-                  <td className="px-2 py-2 sm:px-3">
+                  <td
+                    className={`sticky left-0 z-10 px-2 py-2 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] sm:px-3 ${rowBg}`}
+                  >
                     <span className="block max-w-[120px] text-xs leading-tight sm:max-w-none sm:text-sm">
                       <PlayerName row={row} />
                     </span>
                   </td>
-                  {METRIC_FIELDS.map((metric, metricIndex) => (
+                  {METRIC_FIELDS.map((metric, metricIndex) => {
+                    const highlightEmpty =
+                      partial && row[metric] === null && !row.unknownPlayer && !locked;
+                    return (
                     <td className="px-1 py-2 sm:px-2" key={metric}>
                       <input
                         ref={setInputRef(rowIndex, metricIndex)}
@@ -415,11 +431,16 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                         value={row[metric] ?? ""}
                         onChange={(event) => updateMetric(rowIndex, metric, event.target.value)}
                         onKeyDown={(event) => handleMetricKeyDown(event, rowIndex, metricIndex)}
-                        className="w-9 rounded border border-zinc-300 px-1 py-2 text-center text-base disabled:bg-zinc-100 sm:w-12"
+                        className={`w-9 rounded border px-1 py-2 text-center text-base disabled:bg-zinc-100 sm:w-12 ${
+                          highlightEmpty
+                            ? "border-amber-200 bg-amber-50"
+                            : "border-zinc-300 bg-white"
+                        }`}
                         aria-label={`${row.firstName} ${row.lastName} ${metric}`}
                       />
                     </td>
-                  ))}
+                  );
+                  })}
                   <td className="px-2 py-2 text-center sm:px-3">
                     <input
                       type="checkbox"
