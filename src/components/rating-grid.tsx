@@ -366,18 +366,16 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
               {METRIC_FIELDS.map((field) => (
                 <th
                   key={field}
-                  className="w-11 min-w-[2.75rem] px-0.5 py-1 text-center capitalize align-bottom sm:w-auto sm:min-w-0 sm:px-2 sm:py-2 sm:text-left"
+                  className="relative h-20 align-top px-0.5 py-1 sm:h-auto sm:align-middle sm:px-2 sm:py-2 sm:text-left"
                 >
-                  <div className="flex min-h-[4.75rem] flex-col items-center justify-end gap-1.5 pb-0.5 sm:hidden">
-                    <div className="shrink-0">
+                  <div className="flex h-full w-full items-start justify-center pt-2 sm:hidden">
+                    <span className="inline-flex origin-top-left -rotate-90 items-center gap-0.5 whitespace-nowrap text-[10px] capitalize leading-none">
+                      {field}
                       <MetricHelpButton
                         label={field}
                         description={METRIC_HELP[field]}
                         compact
                       />
-                    </div>
-                    <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[10px] leading-none">
-                      {field}
                     </span>
                   </div>
                   <div className="hidden items-center justify-start sm:flex">
@@ -386,9 +384,9 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                   </div>
                 </th>
               ))}
-              <th className="w-11 min-w-[2.75rem] px-0.5 py-1 text-center align-bottom sm:w-auto sm:min-w-0 sm:px-3 sm:py-2 sm:text-left">
-                <div className="flex min-h-[4.75rem] items-end justify-center pb-2 sm:hidden">
-                  <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[10px] leading-none">
+              <th className="relative h-20 align-top px-0.5 py-1 sm:h-auto sm:align-middle sm:px-3 sm:py-2 sm:text-left">
+                <div className="flex h-full w-full items-start justify-center pt-2 sm:hidden">
+                  <span className="inline-block origin-top-left -rotate-90 whitespace-nowrap text-[10px] leading-none">
                     Unknown
                   </span>
                 </div>
