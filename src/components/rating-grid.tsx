@@ -326,21 +326,33 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
             <tr>
               <th className="px-2 py-2 text-left sm:px-3">Player</th>
               {METRIC_FIELDS.map((field) => (
-                <th key={field} className="px-1 py-2 text-center capitalize sm:px-2 sm:text-left">
-                  <div className="flex items-center justify-center sm:justify-start">
-                    <span className="hidden sm:inline">{field}</span>
-                    <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[11px] leading-none sm:hidden">
+                <th
+                  key={field}
+                  className="w-9 px-1 py-1 text-center capitalize align-bottom sm:w-auto sm:px-2 sm:py-2 sm:text-left"
+                >
+                  <div className="flex h-20 flex-col items-center justify-end gap-1 overflow-hidden sm:hidden">
+                    <MetricHelpButton
+                      label={field}
+                      description={METRIC_HELP[field]}
+                      compact
+                    />
+                    <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[11px] leading-none">
                       {field}
                     </span>
+                  </div>
+                  <div className="hidden items-center justify-start sm:flex">
+                    <span>{field}</span>
                     <MetricHelpButton label={field} description={METRIC_HELP[field]} />
                   </div>
                 </th>
               ))}
-              <th className="px-2 py-2 text-left sm:px-3">
+              <th className="w-10 px-1 py-1 text-center align-bottom sm:w-auto sm:px-3 sm:py-2 sm:text-left">
+                <div className="flex h-20 items-end justify-center overflow-hidden sm:hidden">
+                  <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[11px] leading-none">
+                    Unknown
+                  </span>
+                </div>
                 <span className="hidden sm:inline">I don&apos;t know</span>
-                <span className="inline-block origin-center -rotate-90 whitespace-nowrap text-[11px] leading-none sm:hidden">
-                  Unknown
-                </span>
               </th>
             </tr>
           </thead>

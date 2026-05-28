@@ -27,7 +27,13 @@ export function rowsToCsv(headers: string[], rows: Array<Array<string | number |
 }
 
 export const PLAYER_IMPORT_HEADERS = ["First Name", "Last Name"] as const;
-export const RATER_IMPORT_HEADERS = ["Name", "Email", "is_admin"] as const;
+export const RATER_IMPORT_HEADERS = [
+  "Name",
+  "Email",
+  "is_admin",
+  "Passcode",
+  "Expires At",
+] as const;
 
 export function csvDownloadResponse(filename: string, csv: string) {
   return new Response(csv, {

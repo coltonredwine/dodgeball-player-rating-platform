@@ -5,9 +5,10 @@ import { useEffect, useId, useRef, useState } from "react";
 type Props = {
   label: string;
   description: string;
+  compact?: boolean;
 };
 
-export function MetricHelpButton({ label, description }: Props) {
+export function MetricHelpButton({ label, description, compact = false }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const popoverId = useId();
@@ -41,7 +42,9 @@ export function MetricHelpButton({ label, description }: Props) {
         type="button"
         aria-expanded={open}
         aria-controls={popoverId}
-        className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded bg-zinc-800 px-1 text-xs text-white"
+        className={`inline-flex items-center justify-center rounded bg-zinc-800 text-xs text-white ${
+          compact ? "h-4 min-w-4 px-0.5" : "ml-1 h-5 min-w-5 px-1"
+        }`}
         onClick={() => setOpen((value) => !value)}
       >
         ?
