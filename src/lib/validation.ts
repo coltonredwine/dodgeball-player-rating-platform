@@ -27,3 +27,11 @@ export function normalizeRatingRow(row: z.infer<typeof ratingRowSchema>) {
   }
   return normalized;
 }
+
+export function isCompleteRatingRow(row: z.infer<typeof ratingRowSchema>) {
+  if (row.unknownPlayer) return true;
+  return METRIC_FIELDS.every((field) => {
+    const value = row[field];
+    return typeof value === "number" && value >= 1 && value <= 7;
+  });
+}

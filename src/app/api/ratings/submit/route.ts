@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getBooleanSetting } from "@/lib/settings";
-import { autosaveSchema, normalizeRatingRow } from "@/lib/validation";
+import {
+  autosaveSchema,
+  isCompleteRatingRow,
+  normalizeRatingRow,
+} from "@/lib/validation";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -27,10 +31,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const activePlayers = await prisma.player.findMany({
+    where: { active: true },
+    select: { id: true },
+  });
+  const activePlayerIds = new Set(activePlayers.map((player) => player.id));
+  const normalizedRows = rows
+    .filter((row) => activePlayerIds.has(row.playerId))
+    .map((row) => normalizeRatingRow(row));
+
+  const completeRows = normalizedRows.filter((row) => isCompleteRatingRow(row));
+  if (
+    normalizedRows.length !== activePlayerIds.size ||
+    completeRows.length !== activePlayerIds.size
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Cannot submit until all active players are complete (all six scores or I don't know).",
+      },
+      { status: 400 },
+    );
+  }
+
   const now = new Date();
   await prisma.$transaction(async (tx) => {
-    for (const rowRaw of rows) {
-      const row = normalizeRatingRow(rowRaw);
+    for (const row of normalizedRows) {
       await tx.playerRating.upsert({
         where: {
           submissionId_playerId: { submissionId, playerId: row.playerId },

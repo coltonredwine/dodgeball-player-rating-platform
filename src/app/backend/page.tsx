@@ -7,6 +7,27 @@ import { prisma } from "@/lib/db";
 import { isAdminLike, isSuperadmin } from "@/lib/rbac";
 import { getBooleanSetting } from "@/lib/settings";
 
+function isCompleteSavedRow(rating: {
+  unknownPlayer: boolean;
+  power: number | null;
+  accuracy: number | null;
+  intimidation: number | null;
+  catching: number | null;
+  evasion: number | null;
+  nerve: number | null;
+}) {
+  if (rating.unknownPlayer) return true;
+  const values = [
+    rating.power,
+    rating.accuracy,
+    rating.intimidation,
+    rating.catching,
+    rating.evasion,
+    rating.nerve,
+  ];
+  return values.every((value) => typeof value === "number" && value >= 1 && value <= 7);
+}
+
 export default async function BackendPage() {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -16,17 +37,20 @@ export default async function BackendPage() {
     prisma.player.findMany({ orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }),
     prisma.rater.findMany({ orderBy: { name: "asc" } }),
     prisma.ratingSubmission.findMany({
-      include: { rater: true },
+      include: { rater: true, ratings: true },
       orderBy: { updatedAt: "desc" },
     }),
   ]);
   const scoringOpen = await getBooleanSetting("scoring_open", true);
 
   const superadmin = isSuperadmin(session);
-  const submittedIds = new Set(submissions.map((row) => row.raterId));
-  const inProgressIds = new Set(
-    submissions.filter((row) => row.status === "in_progress").map((row) => row.raterId),
-  );
+  const activePlayersCount = players.filter((player) => player.active).length;
+  const latestSubmissionByRater = new Map<string, (typeof submissions)[number]>();
+  for (const submission of submissions) {
+    if (!latestSubmissionByRater.has(submission.raterId)) {
+      latestSubmissionByRater.set(submission.raterId, submission);
+    }
+  }
 
   return (
     <main>
@@ -95,11 +119,20 @@ export default async function BackendPage() {
             </thead>
             <tbody>
               {raters.map((rater) => {
-                const status = submittedIds.has(rater.id)
-                  ? "submitted"
-                  : inProgressIds.has(rater.id)
-                    ? "in progress"
-                    : "not started";
+                const latest = latestSubmissionByRater.get(rater.id);
+                const completeSavedCount =
+                  latest?.ratings.filter((rating) => isCompleteSavedRow(rating)).length ?? 0;
+                const hasSavedRows = (latest?.ratings.length ?? 0) > 0;
+                const isFullyComplete =
+                  activePlayersCount > 0 && completeSavedCount === activePlayersCount;
+                let status = "not started";
+                if (latest?.status === "submitted" && isFullyComplete) {
+                  status = "submitted";
+                } else if (hasSavedRows) {
+                  status = "incomplete";
+                } else if (latest) {
+                  status = "in progress";
+                }
                 return (
                   <tr key={rater.id} className="border-t border-zinc-200">
                     <td className="px-3 py-2">{rater.name}</td>
