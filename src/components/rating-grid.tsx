@@ -37,6 +37,28 @@ type ConfettiPiece = {
 
 const STORAGE_PREFIX = "player-scores-pending-";
 
+const MOBILE_METRIC_TH_CLASS =
+  "relative w-10 min-w-10 p-0 align-bottom overflow-visible sm:w-auto sm:min-w-0 sm:p-2 sm:align-middle";
+
+function MobileRotatedHeader({
+  label,
+  description,
+}: {
+  label: string;
+  description?: string;
+}) {
+  return (
+    <div className="flex w-full items-end justify-center gap-0.5 overflow-visible px-0.5 py-1.5 sm:hidden">
+      <span className="text-[10px] capitalize leading-none [writing-mode:vertical-rl]">
+        {label}
+      </span>
+      {description ? (
+        <MetricHelpButton label={label} description={description} compact />
+      ) : null}
+    </div>
+  );
+}
+
 function isValidScore(value: number | null): value is number {
   return value !== null && value >= 1 && value <= 7;
 }
@@ -358,38 +380,22 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
 
       <div className="max-h-[75vh] overflow-auto rounded border border-zinc-200">
         <table className="min-w-full border-collapse text-sm">
-          <thead className="sticky top-0 z-20 bg-zinc-100">
+          <thead className="sticky top-0 z-20 overflow-visible bg-zinc-100">
             <tr>
               <th className="sticky left-0 z-30 bg-zinc-100 px-2 py-2 text-left shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] sm:px-3">
                 Player
               </th>
               {METRIC_FIELDS.map((field) => (
-                <th
-                  key={field}
-                  className="relative h-20 align-top px-0.5 py-1 sm:h-auto sm:align-middle sm:px-2 sm:py-2 sm:text-left"
-                >
-                  <div className="flex h-full w-full items-start justify-center pt-2 sm:hidden">
-                    <span className="inline-flex origin-top-left -rotate-90 items-center gap-0.5 whitespace-nowrap text-[10px] capitalize leading-none">
-                      {field}
-                      <MetricHelpButton
-                        label={field}
-                        description={METRIC_HELP[field]}
-                        compact
-                      />
-                    </span>
-                  </div>
+                <th key={field} className={MOBILE_METRIC_TH_CLASS}>
+                  <MobileRotatedHeader label={field} description={METRIC_HELP[field]} />
                   <div className="hidden items-center justify-start sm:flex">
                     <span>{field}</span>
                     <MetricHelpButton label={field} description={METRIC_HELP[field]} />
                   </div>
                 </th>
               ))}
-              <th className="relative h-20 align-top px-0.5 py-1 sm:h-auto sm:align-middle sm:px-3 sm:py-2 sm:text-left">
-                <div className="flex h-full w-full items-start justify-center pt-2 sm:hidden">
-                  <span className="inline-block origin-top-left -rotate-90 whitespace-nowrap text-[10px] leading-none">
-                    Unknown
-                  </span>
-                </div>
+              <th className={MOBILE_METRIC_TH_CLASS}>
+                <MobileRotatedHeader label="Unknown" />
                 <span className="hidden sm:inline">I don&apos;t know</span>
               </th>
             </tr>
@@ -417,7 +423,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                     const highlightEmpty =
                       partial && row[metric] === null && !row.unknownPlayer && !locked;
                     return (
-                    <td className="px-1 py-2 sm:px-2" key={metric}>
+                    <td className="w-10 min-w-10 px-0.5 py-2 sm:w-auto sm:min-w-0 sm:px-2" key={metric}>
                       <input
                         ref={setInputRef(rowIndex, metricIndex)}
                         type="text"
@@ -439,10 +445,10 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                     </td>
                   );
                   })}
-                  <td className="px-2 py-2 text-center sm:px-3">
+                  <td className="w-10 min-w-10 px-0.5 py-2 text-center sm:w-auto sm:min-w-0 sm:px-3">
                     <input
                       type="checkbox"
-                      className="h-5 w-5"
+                      className="mx-auto h-5 w-5"
                       checked={row.unknownPlayer}
                       disabled={locked}
                       onChange={(event) => toggleUnknown(rowIndex, event.target.checked)}
