@@ -53,7 +53,7 @@ export function MetricHelpButton({ label, description, compact = false }: Props)
         <div
           id={popoverId}
           role="tooltip"
-          className="absolute left-0 top-full z-50 mt-1 w-56 max-w-[min(16rem,calc(100vw-2rem))] rounded border border-zinc-300 bg-white p-2 text-left text-xs font-normal normal-case text-zinc-800 shadow-lg"
+          className="absolute left-0 top-full z-50 mt-1 w-56 max-w-[calc(100vw-1.5rem)] rounded border border-zinc-300 bg-white p-2 text-left text-xs font-normal normal-case text-zinc-800 shadow-lg"
         >
           <p className="mb-1 font-semibold capitalize">{label}</p>
           <p className="leading-snug">{description}</p>

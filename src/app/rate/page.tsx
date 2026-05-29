@@ -73,9 +73,9 @@ export default async function RatePage() {
   });
 
   return (
-    <main>
+    <main className="min-w-0 overflow-x-hidden">
       <AppNav canSeeBackend={canSeeBackend} displayName={session.name || session.email} />
-      <section className="mx-auto max-w-7xl px-4 py-6">
+      <section className="mx-auto min-w-0 max-w-7xl px-3 py-6 sm:px-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold">Rate Players</h1>
           {showRateButton ? (

@@ -38,7 +38,9 @@ type ConfettiPiece = {
 const STORAGE_PREFIX = "player-scores-pending-";
 
 const MOBILE_METRIC_TH_CLASS =
-  "relative w-10 min-w-10 p-0 align-bottom overflow-visible sm:w-auto sm:min-w-0 sm:p-2 sm:align-middle";
+  "relative w-[1.65rem] max-w-[1.65rem] p-0 align-bottom sm:w-auto sm:max-w-none sm:p-2 sm:align-middle";
+
+const MOBILE_METRIC_TD_CLASS = "w-[1.65rem] max-w-[1.65rem] px-0 py-1.5 sm:w-auto sm:max-w-none sm:px-2 sm:py-2";
 
 function MobileRotatedHeader({
   label,
@@ -48,8 +50,8 @@ function MobileRotatedHeader({
   description?: string;
 }) {
   return (
-    <div className="flex w-full items-end justify-center gap-0.5 overflow-visible px-0.5 py-1.5 sm:hidden">
-      <span className="text-[10px] capitalize leading-none [writing-mode:vertical-rl]">
+    <div className="flex w-full flex-col items-center justify-end gap-0.5 overflow-hidden py-1 sm:hidden">
+      <span className="text-[9px] capitalize leading-none [writing-mode:vertical-rl]">
         {label}
       </span>
       {description ? (
@@ -84,7 +86,7 @@ function PlayerName({ row }: { row: PlayerRow }) {
         href={row.link}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-blue-800 underline decoration-blue-800/40 underline-offset-2 hover:text-blue-950"
+        className="block truncate text-blue-800 underline decoration-blue-800/40 underline-offset-2 hover:text-blue-950"
       >
         {label}
       </a>
@@ -294,7 +296,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-zinc-600">
           <p>{status}</p>
@@ -305,7 +307,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             disabled={locked || !hasPending}
@@ -378,11 +380,18 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
         </div>
       )}
 
-      <div className="max-h-[75vh] overflow-auto rounded border border-zinc-200">
-        <table className="min-w-full border-collapse text-sm">
-          <thead className="sticky top-0 z-20 overflow-visible bg-zinc-100">
+      <div className="max-h-[75vh] w-full min-w-0 overflow-auto rounded border border-zinc-200">
+        <table className="w-full table-fixed border-collapse text-sm sm:table-auto sm:min-w-full">
+          <colgroup className="sm:hidden">
+            <col className="w-[26%]" />
+            {METRIC_FIELDS.map((field) => (
+              <col key={field} className="w-[10%]" />
+            ))}
+            <col className="w-[14%]" />
+          </colgroup>
+          <thead className="sticky top-0 z-20 bg-zinc-100">
             <tr>
-              <th className="sticky left-0 z-30 bg-zinc-100 px-2 py-2 text-left shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] sm:px-3">
+              <th className="sticky left-0 z-30 w-[26%] bg-zinc-100 px-1 py-2 text-left text-xs shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] sm:w-auto sm:px-3 sm:text-sm">
                 Player
               </th>
               {METRIC_FIELDS.map((field) => (
@@ -413,9 +422,12 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                   }`}
                 >
                   <td
-                    className={`sticky left-0 z-10 px-2 py-2 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] sm:px-3 ${rowBg}`}
+                    className={`sticky left-0 z-10 w-[26%] px-1 py-1.5 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] sm:w-auto sm:px-3 sm:py-2 ${rowBg}`}
                   >
-                    <span className="block max-w-[120px] text-xs leading-tight sm:max-w-none sm:text-sm">
+                    <span
+                      className="block truncate text-[11px] leading-tight sm:max-w-none sm:text-sm"
+                      title={`${row.firstName} ${row.lastName}`}
+                    >
                       <PlayerName row={row} />
                     </span>
                   </td>
@@ -423,7 +435,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                     const highlightEmpty =
                       partial && row[metric] === null && !row.unknownPlayer && !locked;
                     return (
-                    <td className="w-10 min-w-10 px-0.5 py-2 sm:w-auto sm:min-w-0 sm:px-2" key={metric}>
+                    <td className={MOBILE_METRIC_TD_CLASS} key={metric}>
                       <input
                         ref={setInputRef(rowIndex, metricIndex)}
                         type="text"
@@ -435,7 +447,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                         value={row[metric] ?? ""}
                         onChange={(event) => updateMetric(rowIndex, metric, event.target.value)}
                         onKeyDown={(event) => handleMetricKeyDown(event, rowIndex, metricIndex)}
-                        className={`w-9 rounded border px-1 py-2 text-center text-base disabled:bg-zinc-100 sm:w-12 ${
+                        className={`box-border w-full max-w-[1.45rem] rounded border px-0 py-1.5 text-center text-sm disabled:bg-zinc-100 sm:max-w-none sm:w-12 sm:px-1 sm:py-2 sm:text-base ${
                           highlightEmpty
                             ? "border-amber-200 bg-amber-50"
                             : "border-zinc-300 bg-white"
@@ -445,10 +457,10 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                     </td>
                   );
                   })}
-                  <td className="w-10 min-w-10 px-0.5 py-2 text-center sm:w-auto sm:min-w-0 sm:px-3">
+                  <td className={`${MOBILE_METRIC_TD_CLASS} text-center sm:px-3`}>
                     <input
                       type="checkbox"
-                      className="mx-auto h-5 w-5"
+                      className="mx-auto h-4 w-4 sm:h-5 sm:w-5"
                       checked={row.unknownPlayer}
                       disabled={locked}
                       onChange={(event) => toggleUnknown(rowIndex, event.target.checked)}
