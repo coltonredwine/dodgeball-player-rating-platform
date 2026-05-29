@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { playerIdFromNames } from "@/lib/players";
 import { requireSuperadmin } from "@/lib/api-auth";
 import { parseCsv, parseOptionalLink } from "@/lib/csv";
 import { backendRedirect } from "@/lib/request-url";
@@ -58,11 +59,10 @@ export async function POST(request: Request) {
 
   await prisma.$transaction([
     prisma.player.updateMany({ data: { active: false } }),
-    ...normalized.map((row) =>
-      prisma.player.upsert({
-        where: {
-          id: `${row.firstName.toLowerCase()}-${row.lastName.toLowerCase()}`,
-        },
+    ...normalized.map((row) => {
+      const id = playerIdFromNames(row.firstName, row.lastName);
+      return prisma.player.upsert({
+        where: { id },
         update: {
           firstName: row.firstName,
           lastName: row.lastName,
@@ -70,14 +70,14 @@ export async function POST(request: Request) {
           active: true,
         },
         create: {
-          id: `${row.firstName.toLowerCase()}-${row.lastName.toLowerCase()}`,
+          id,
           firstName: row.firstName,
           lastName: row.lastName,
           link: row.link,
           active: true,
         },
-      }),
-    ),
+      });
+    }),
   ]);
 
   const redirectParams: Record<string, string> = {};

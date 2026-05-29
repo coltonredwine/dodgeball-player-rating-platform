@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
 import { BackendSettingsForm } from "@/components/backend-settings-form";
 import { CsvImportPanel } from "@/components/csv-import-panel";
+import { PlayersEditor } from "@/components/players-editor";
 import { getSession } from "@/lib/auth";
+import { formatProgressLabel, getRaterProgress } from "@/lib/completion";
 import { prisma } from "@/lib/db";
 import { isAdminLike, isSuperadmin } from "@/lib/rbac";
 import {
@@ -12,27 +14,6 @@ import {
   getBooleanSetting,
   getStringSetting,
 } from "@/lib/settings";
-
-function isCompleteSavedRow(rating: {
-  unknownPlayer: boolean;
-  power: number | null;
-  accuracy: number | null;
-  intimidation: number | null;
-  catching: number | null;
-  evasion: number | null;
-  nerve: number | null;
-}) {
-  if (rating.unknownPlayer) return true;
-  const values = [
-    rating.power,
-    rating.accuracy,
-    rating.intimidation,
-    rating.catching,
-    rating.evasion,
-    rating.nerve,
-  ];
-  return values.every((value) => typeof value === "number" && value >= 1 && value <= 7);
-}
 
 export default async function BackendPage({
   searchParams,
@@ -70,7 +51,7 @@ export default async function BackendPage({
   }
 
   return (
-    <main>
+    <main className="bg-white text-zinc-900">
       <AppNav canSeeBackend displayName={session.name || session.email} />
       <section className="mx-auto max-w-7xl space-y-8 px-4 py-6">
         <div className="flex items-center justify-between">
@@ -172,28 +153,20 @@ export default async function BackendPage({
                     <th className="px-2 py-1.5 font-medium">Passcode</th>
                   ) : null}
                   <th className="px-2 py-1.5 font-medium">Status</th>
+                  <th className="px-2 py-1.5 font-medium">Preview</th>
                   <th className="px-2 py-1.5 font-medium">Export</th>
                 </tr>
               </thead>
               <tbody>
                 {raters.map((rater) => {
                   const latest = latestSubmissionByRater.get(rater.id);
-                  const completeSavedCount =
-                    latest?.ratings.filter((rating) => isCompleteSavedRow(rating)).length ?? 0;
-                  const hasSavedRows = (latest?.ratings.length ?? 0) > 0;
-                  const isFullyComplete =
-                    activePlayersCount > 0 && completeSavedCount === activePlayersCount;
-                  const isSubmittedComplete =
-                    latest?.status === "submitted" && isFullyComplete;
-
-                  let statusLabel = "not started";
-                  if (isSubmittedComplete) {
-                    statusLabel = "complete";
-                  } else if (hasSavedRows) {
-                    statusLabel = "incomplete";
-                  } else if (latest) {
-                    statusLabel = "in progress";
-                  }
+                  const progress = getRaterProgress(
+                    latest?.ratings ?? [],
+                    activePlayersCount,
+                    latest?.submittedAt,
+                    latest?.status,
+                  );
+                  const statusLabel = formatProgressLabel(progress, activePlayersCount);
 
                   return (
                     <tr key={rater.id} className="border-b border-zinc-100 last:border-b-0">
@@ -204,19 +177,35 @@ export default async function BackendPage({
                           {rater.passcodeDisplay ?? "—"}
                         </td>
                       ) : null}
-                      <td className="px-2 py-1.5 capitalize">
-                        {isSubmittedComplete ? (
-                          <span className="inline-flex items-center gap-1">
+                      <td className="px-2 py-1.5">
+                        {progress.isSubmittedComplete ? (
+                          <span className="inline-flex items-center gap-1 font-medium capitalize">
                             Complete <span aria-hidden="true">✅</span>
                           </span>
                         ) : (
-                          statusLabel
+                          <span className="text-zinc-700">{statusLabel}</span>
                         )}
                       </td>
                       <td className="px-2 py-1.5">
-                        {isFullyComplete ? (
+                        {progress.hasAnySavedRows ? (
+                          <Link
+                            className="text-[11px] font-medium text-blue-700 underline hover:text-blue-900"
+                            href={`/backend/rater/${rater.id}`}
+                          >
+                            View scores
+                          </Link>
+                        ) : (
+                          <span className="text-[11px] text-zinc-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {progress.hasAnySavedRows ? (
                           <a
-                            className="inline-block rounded bg-blue-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-blue-700"
+                            className={`inline-block rounded px-2 py-0.5 text-[11px] font-medium text-white ${
+                              progress.isFullyComplete
+                                ? "bg-blue-600 hover:bg-blue-700"
+                                : "bg-zinc-500 hover:bg-zinc-600"
+                            }`}
                             href={`/api/admin/export/rater/${rater.id}`}
                           >
                             Download CSV
@@ -237,23 +226,41 @@ export default async function BackendPage({
 
         <section className="grid gap-6 md:grid-cols-2">
           <div>
-            <h2 className="text-lg font-semibold">Players table</h2>
-            <table className="mt-2 min-w-full border-collapse rounded border border-zinc-200 text-sm">
-              <thead className="bg-zinc-100">
-                <tr>
-                  <th className="px-3 py-2 text-left">First</th>
-                  <th className="px-3 py-2 text-left">Last</th>
-                </tr>
-              </thead>
-              <tbody>
-                {players.map((player) => (
-                  <tr key={player.id} className="border-t border-zinc-200">
-                    <td className="px-3 py-2">{player.firstName}</td>
-                    <td className="px-3 py-2">{player.lastName}</td>
+            <h2 className="text-lg font-semibold">Players</h2>
+            {superadmin ? (
+              <div className="mt-2">
+                <PlayersEditor
+                  players={players.map((player) => ({
+                    id: player.id,
+                    firstName: player.firstName,
+                    lastName: player.lastName,
+                    link: player.link,
+                    active: player.active,
+                  }))}
+                />
+              </div>
+            ) : (
+              <table className="mt-2 min-w-full border-collapse rounded border border-zinc-200 text-sm">
+                <thead className="bg-zinc-100">
+                  <tr>
+                    <th className="px-3 py-2 text-left">First</th>
+                    <th className="px-3 py-2 text-left">Last</th>
+                    <th className="px-3 py-2 text-left">Link</th>
+                    <th className="px-3 py-2 text-left">Active</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {players.map((player) => (
+                    <tr key={player.id} className="border-t border-zinc-200">
+                      <td className="px-3 py-2">{player.firstName}</td>
+                      <td className="px-3 py-2">{player.lastName}</td>
+                      <td className="px-3 py-2 text-zinc-600">{player.link ?? "—"}</td>
+                      <td className="px-3 py-2">{player.active ? "Yes" : "No"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           <div>

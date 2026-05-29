@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     await tx.ratingSubmission.update({
       where: { id: submissionId },
       data: {
-        status: "in_progress",
+        ...(submission.status === "submitted" ? {} : { status: "in_progress" }),
         lastAutosavedAt: now,
         lastSyncedAt: now,
       },

@@ -51,7 +51,7 @@ function MobileRotatedHeader({
 }) {
   return (
     <div className="flex w-full flex-col items-center justify-end gap-0.5 overflow-hidden py-1 sm:hidden">
-      <span className="text-[9px] capitalize leading-none [writing-mode:vertical-rl]">
+      <span className="text-[9px] capitalize leading-none text-zinc-900 [writing-mode:vertical-rl]">
         {label}
       </span>
       {description ? (
@@ -296,7 +296,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
   }
 
   return (
-    <div className="min-w-0 space-y-3">
+    <div className="min-w-0 space-y-3 text-zinc-900">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-zinc-600">
           <p>{status}</p>
@@ -389,13 +389,13 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
             ))}
             <col className="w-[14%]" />
           </colgroup>
-          <thead className="sticky top-0 z-20 bg-zinc-100">
+          <thead className="sticky top-0 z-20 bg-zinc-100 text-zinc-900">
             <tr>
-              <th className="sticky left-0 z-30 w-[26%] bg-zinc-100 px-1 py-2 text-left text-xs shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] sm:w-auto sm:px-3 sm:text-sm">
+              <th className="sticky left-0 z-30 w-[26%] bg-zinc-100 px-1 py-2 text-left text-xs text-zinc-900 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] sm:w-auto sm:px-3 sm:text-sm">
                 Player
               </th>
               {METRIC_FIELDS.map((field) => (
-                <th key={field} className={MOBILE_METRIC_TH_CLASS}>
+                <th key={field} className={`${MOBILE_METRIC_TH_CLASS} text-zinc-900`}>
                   <MobileRotatedHeader label={field} description={METRIC_HELP[field]} />
                   <div className="hidden items-center justify-start sm:flex">
                     <span>{field}</span>
@@ -403,7 +403,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                   </div>
                 </th>
               ))}
-              <th className={MOBILE_METRIC_TH_CLASS}>
+              <th className={`${MOBILE_METRIC_TH_CLASS} text-zinc-900`}>
                 <MobileRotatedHeader label="Unknown" />
                 <span className="hidden sm:inline">I don&apos;t know</span>
               </th>

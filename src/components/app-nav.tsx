@@ -28,7 +28,7 @@ export function AppNav({ canSeeBackend, displayName }: Props) {
   const baseClass = "rounded px-3 py-1 text-sm";
 
   return (
-    <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white">
+    <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white text-zinc-900">
       <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4">
         <div className="flex items-center justify-between">
           <div className="hidden flex-wrap items-center gap-2 sm:flex sm:gap-3">

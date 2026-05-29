@@ -73,7 +73,7 @@ export default async function RatePage() {
   });
 
   return (
-    <main className="min-w-0 overflow-x-hidden">
+    <main className="min-w-0 overflow-x-hidden bg-white text-zinc-900">
       <AppNav canSeeBackend={canSeeBackend} displayName={session.name || session.email} />
       <section className="mx-auto min-w-0 max-w-7xl px-3 py-6 sm:px-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
