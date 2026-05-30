@@ -96,6 +96,14 @@ Use `render.yaml` to provision:
 - Web service (`player-scores`)
 - Postgres database (`player-scores-db`)
 
+**Start command (required):** Render does not always pick up `render.yaml` changes for an existing service. In the Render dashboard, set:
+
+```bash
+npm run render:start
+```
+
+Do **not** use `prisma db push` in production.
+
 Required env vars:
 - `DATABASE_URL`
 - `SESSION_SECRET`
