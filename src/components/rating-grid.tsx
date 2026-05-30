@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { METRIC_FIELDS, METRIC_HELP, MetricField } from "@/lib/constants";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { MetricHelpButton } from "@/components/metric-help-button";
+import { METRIC_FIELDS, METRIC_HELP, MetricField } from "@/lib/constants";
+import { emptyRatingRows, mergeCsvIntoRatingRows } from "@/lib/rating-csv-import";
 
 type PlayerRow = {
   playerId: string;
@@ -128,8 +130,13 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
   });
   const [status, setStatus] = useState("Saved");
   const [showIncompleteWarning, setShowIncompleteWarning] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [clearPending, setClearPending] = useState(false);
   const [confettiPieces, setConfettiPieces] = useState<ConfettiPiece[]>([]);
   const inputRefs = useRef<(HTMLInputElement | null)[][]>([]);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const incompleteCount = useMemo(
     () => rows.filter((row) => !isRowComplete(row)).length,
@@ -293,6 +300,48 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
       }
       inputRefs.current[rowIndex][metricIndex] = element;
     };
+  }
+
+  async function handleCsvUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || locked) return;
+
+    setImportMessage(null);
+    setImportError(null);
+
+    try {
+      const text = await file.text();
+      const result = mergeCsvIntoRatingRows(text, rows);
+
+      if (result.formatError) {
+        setImportError(result.formatError);
+        return;
+      }
+
+      setRows(result.rows);
+      persistRows(result.rows);
+      await sync(result.rows, false);
+      setImportMessage(`Imported scores for ${result.updatedCount} player(s).`);
+    } catch {
+      setImportError(
+        "Could not read this CSV file. Check that it is a valid CSV with player names and score columns.",
+      );
+    }
+  }
+
+  async function handleClearScores() {
+    if (locked) return;
+
+    setClearPending(true);
+    const cleared = emptyRatingRows(rows);
+    setRows(cleared);
+    localStorage.removeItem(storageKey);
+    await sync(cleared, false);
+    setClearPending(false);
+    setShowClearConfirm(false);
+    setImportMessage(null);
+    setImportError(null);
   }
 
   return (
@@ -473,6 +522,50 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
           </tbody>
         </table>
       </div>
+
+      {importMessage ? <p className="text-sm text-green-700">{importMessage}</p> : null}
+      {importError ? <p className="text-sm text-red-700">{importError}</p> : null}
+
+      <div className="flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-3">
+        <input
+          ref={csvInputRef}
+          type="file"
+          accept=".csv"
+          className="sr-only"
+          disabled={locked}
+          onChange={(event) => void handleCsvUpload(event)}
+        />
+        <button
+          type="button"
+          className="rounded border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-50"
+          disabled={locked}
+          onClick={() => csvInputRef.current?.click()}
+        >
+          Upload CSV
+        </button>
+        <button
+          type="button"
+          className="rounded border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+          disabled={locked || !hasPending}
+          onClick={() => setShowClearConfirm(true)}
+        >
+          Clear scores
+        </button>
+        <p className="text-xs text-zinc-500">
+          CSV format: first name, last name, then six scores (1–7 or blank). Invalid or
+          unmatched rows are skipped.
+        </p>
+      </div>
+
+      <ConfirmDialog
+        open={showClearConfirm}
+        title="Clear all scores?"
+        message="This will remove every score you have entered on this page. This cannot be undone."
+        confirmLabel="Clear"
+        pending={clearPending}
+        onCancel={() => setShowClearConfirm(false)}
+        onConfirm={() => void handleClearScores()}
+      />
     </div>
   );
 }

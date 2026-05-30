@@ -48,7 +48,7 @@ export function ConfirmDialog({
             disabled={pending}
             onClick={onConfirm}
           >
-            {pending ? "Deleting…" : confirmLabel}
+            {pending ? `${confirmLabel}…` : confirmLabel}
           </button>
         </div>
       </div>
