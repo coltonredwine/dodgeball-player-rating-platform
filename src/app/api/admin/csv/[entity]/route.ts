@@ -51,6 +51,6 @@ export async function GET(
     where: { active: true },
     orderBy: { name: "asc" },
   });
-  const rows = raters.map((r) => [r.name, r.email, r.isAdmin ? "true" : "false", "", ""]);
+  const rows = raters.map((r) => [r.name, r.email, r.role, "", ""]);
   return csvDownloadResponse("raters-current.csv", rowsToCsv(headers, rows));
 }

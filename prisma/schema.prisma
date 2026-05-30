@@ -12,6 +12,12 @@ enum SubmissionStatus {
   submitted
 }
 
+enum RaterRole {
+  rater
+  manager
+  admin
+}
+
 model Player {
   id        String         @id @default(cuid())
   firstName String
@@ -30,7 +36,7 @@ model Rater {
   name             String
   email            String             @unique
   passcodeDisplay  String?
-  isAdmin          Boolean            @default(false)
+  role             RaterRole          @default(rater)
   active           Boolean            @default(true)
   inviteCodes InviteCode[]
   submissions RatingSubmission[]

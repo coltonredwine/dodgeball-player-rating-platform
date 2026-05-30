@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createSession, getSuperadminIdentity } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { dbRoleToSessionRole } from "@/lib/rbac";
 
 export async function POST(request: Request) {
   try {
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
     });
 
     await createSession({
-      role: rater.isAdmin ? "admin" : "rater",
+      role: dbRoleToSessionRole(rater.role),
       raterId: rater.id,
       email: rater.email,
       name: rater.name,

@@ -2,31 +2,35 @@ import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
 import { RatingGuideModal } from "@/components/rating-guide-modal";
 import { RatingGrid } from "@/components/rating-grid";
-import { getSession } from "@/lib/auth";
+import { getSession, resolveSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isBackendUser } from "@/lib/rbac";
 import { getOrCreateSubmission } from "@/lib/rating";
 import {
   RATE_PAGE_BUTTON_TITLE_KEY,
   RATE_PAGE_BUTTON_URL_KEY,
+  RATE_PAGE_TITLE_KEY,
   getBooleanSetting,
   getStringSetting,
 } from "@/lib/settings";
 
 export default async function RatePage() {
-  const session = await getSession();
+  const session = await resolveSession();
   if (!session) redirect("/login");
 
   if (!session.raterId && session.role !== "superadmin") {
     redirect("/login");
   }
 
-  const [scoringOpen, rateButtonTitle, rateButtonUrl] = await Promise.all([
+  const [scoringOpen, ratePageTitle, rateButtonTitle, rateButtonUrl] = await Promise.all([
     getBooleanSetting("scoring_open", true),
+    getStringSetting(RATE_PAGE_TITLE_KEY, ""),
     getStringSetting(RATE_PAGE_BUTTON_TITLE_KEY, ""),
     getStringSetting(RATE_PAGE_BUTTON_URL_KEY, ""),
   ]);
-  const canSeeBackend = session.role === "admin" || session.role === "superadmin";
+  const canSeeBackend = isBackendUser(session);
   const showRateButton = Boolean(rateButtonTitle && rateButtonUrl);
+  const pageTitle = ratePageTitle.trim() || "Rate Players";
 
   const players = await prisma.player.findMany({
     where: { active: true },
@@ -38,11 +42,11 @@ export default async function RatePage() {
       ? (
           await prisma.rater.upsert({
             where: { email: session.email },
-            update: { name: "Superadmin", isAdmin: true, active: true },
+            update: { name: "Superadmin", role: "admin", active: true },
             create: {
               email: session.email,
               name: "Superadmin",
-              isAdmin: true,
+              role: "admin",
               active: true,
             },
           })
@@ -77,7 +81,7 @@ export default async function RatePage() {
       <AppNav canSeeBackend={canSeeBackend} displayName={session.name || session.email} />
       <section className="mx-auto min-w-0 max-w-7xl px-3 py-6 sm:px-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-2xl font-semibold">Rate Players</h1>
+          <h1 className="text-2xl font-semibold">{pageTitle}</h1>
           {showRateButton ? (
             <a
               href={rateButtonUrl}

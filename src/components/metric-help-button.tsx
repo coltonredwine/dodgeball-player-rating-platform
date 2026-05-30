@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 type Props = {
   label: string;
@@ -8,10 +8,46 @@ type Props = {
   compact?: boolean;
 };
 
+const POPOVER_WIDTH = 224;
+const VIEWPORT_PADDING = 12;
+
 export function MetricHelpButton({ label, description, compact = false }: Props) {
   const [open, setOpen] = useState(false);
+  const [popoverStyle, setPopoverStyle] = useState<{ top: number; left: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverId = useId();
+
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) {
+      setPopoverStyle(null);
+      return;
+    }
+
+    function updatePosition() {
+      const button = buttonRef.current;
+      if (!button) return;
+
+      const rect = button.getBoundingClientRect();
+      let left = rect.left;
+      const maxLeft = window.innerWidth - POPOVER_WIDTH - VIEWPORT_PADDING;
+      left = Math.min(left, maxLeft);
+      left = Math.max(VIEWPORT_PADDING, left);
+
+      setPopoverStyle({
+        top: rect.bottom + 4,
+        left,
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -39,6 +75,7 @@ export function MetricHelpButton({ label, description, compact = false }: Props)
   return (
     <div ref={rootRef} className="relative inline-block">
       <button
+        ref={buttonRef}
         type="button"
         aria-expanded={open}
         aria-controls={popoverId}
@@ -49,11 +86,12 @@ export function MetricHelpButton({ label, description, compact = false }: Props)
       >
         ?
       </button>
-      {open && (
+      {open && popoverStyle ? (
         <div
           id={popoverId}
           role="tooltip"
-          className="absolute left-0 top-full z-50 mt-1 w-56 max-w-[calc(100vw-1.5rem)] rounded border border-zinc-300 bg-white p-2 text-left text-xs font-normal normal-case text-zinc-800 shadow-lg"
+          style={{ top: popoverStyle.top, left: popoverStyle.left }}
+          className="fixed z-50 w-56 max-w-[calc(100vw-1.5rem)] rounded border border-zinc-300 bg-white p-2 text-left text-xs font-normal normal-case text-zinc-800 shadow-lg"
         >
           <p className="mb-1 font-semibold capitalize">{label}</p>
           <p className="leading-snug">{description}</p>
@@ -65,7 +103,7 @@ export function MetricHelpButton({ label, description, compact = false }: Props)
             Close
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

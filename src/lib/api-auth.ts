@@ -1,9 +1,22 @@
 import { NextResponse } from "next/server";
-import { AppSession, getSession } from "@/lib/auth";
-import { isAdminLike, isSuperadmin } from "@/lib/rbac";
+import { AppSession, getSession, resolveSession } from "@/lib/auth";
+import { isAdminLike, isBackendUser, isSuperadmin } from "@/lib/rbac";
 
+export async function requireBackendUser() {
+  const session = await resolveSession();
+  if (!session || !isBackendUser(session)) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  return { session };
+}
+
+/** @deprecated Use requireBackendUser for read/export access. */
 export async function requireAdminLike() {
-  const session = await getSession();
+  return requireBackendUser();
+}
+
+export async function requireAdmin() {
+  const session = await resolveSession();
   if (!session || !isAdminLike(session)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }

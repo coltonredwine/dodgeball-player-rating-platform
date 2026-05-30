@@ -9,13 +9,13 @@ async function main() {
     where: { email: superadminEmail.toLowerCase() },
     update: {
       name: "Superadmin",
-      isAdmin: true,
+      role: "admin",
       active: true,
     },
     create: {
       email: superadminEmail.toLowerCase(),
       name: "Superadmin",
-      isAdmin: true,
+      role: "admin",
       active: true,
     },
   });

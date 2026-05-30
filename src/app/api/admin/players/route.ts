@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireSuperadmin } from "@/lib/api-auth";
+import { requireAdmin } from "@/lib/api-auth";
 import { parseOptionalLink } from "@/lib/csv";
 import { prisma } from "@/lib/db";
 import { playerIdFromNames } from "@/lib/players";
 
 export async function POST(request: Request) {
-  const auth = await requireSuperadmin();
+  const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
   const body = (await request.json()) as {

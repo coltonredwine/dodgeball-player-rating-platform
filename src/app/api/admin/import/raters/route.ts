@@ -4,11 +4,12 @@ import { prisma } from "@/lib/db";
 import { requireSuperadmin } from "@/lib/api-auth";
 import { parseCsv } from "@/lib/csv";
 import { backendRedirect } from "@/lib/request-url";
+import { DbRaterRole, parseDbRaterRole } from "@/lib/rater-roles";
 
 type RaterImportRow = {
   name: string;
   email: string;
-  isAdmin: boolean;
+  role: DbRaterRole;
   passcode?: string;
   expiresAt?: Date;
 };
@@ -17,9 +18,18 @@ type PreparedRaterRow = RaterImportRow & {
   codeHash?: string;
 };
 
-function toBoolean(input: string) {
-  const value = input.trim().toLowerCase();
-  return value === "true" || value === "yes" || value === "1";
+function getRole(row: Record<string, string>): DbRaterRole {
+  const roleRaw = (row["role"] ?? row["Role"] ?? "").trim();
+  if (roleRaw) {
+    return parseDbRaterRole(roleRaw) ?? "rater";
+  }
+
+  const legacyAdmin = (row["is_admin"] ?? row["Admin"] ?? row["is_manager"] ?? "").trim();
+  if (legacyAdmin) {
+    return parseDbRaterRole(legacyAdmin) ?? "rater";
+  }
+
+  return "rater";
 }
 
 function getPasscode(row: Record<string, string>) {
@@ -62,7 +72,7 @@ export async function POST(request: Request) {
     for (const [index, row] of rows.entries()) {
       const name = (row["Name"] ?? "").trim();
       const email = (row["Email"] ?? "").trim().toLowerCase();
-      const adminValue = (row["is_admin"] ?? row["Admin"] ?? "").trim();
+      const role = getRole(row);
       const passcode = getPasscode(row);
       const expiresRaw = getExpiresAtRaw(row);
 
@@ -93,7 +103,7 @@ export async function POST(request: Request) {
       normalized.push({
         name,
         email,
-        isAdmin: adminValue ? toBoolean(adminValue) : false,
+        role,
         passcode: passcode || undefined,
         expiresAt,
       });
@@ -115,14 +125,14 @@ export async function POST(request: Request) {
         where: { email: row.email },
         update: {
           name: row.name,
-          isAdmin: row.isAdmin,
+          role: row.role,
           active: true,
           ...(row.passcode ? { passcodeDisplay: row.passcode } : {}),
         },
         create: {
           name: row.name,
           email: row.email,
-          isAdmin: row.isAdmin,
+          role: row.role,
           active: true,
           passcodeDisplay: row.passcode ?? null,
         },

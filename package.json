@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "npm run lint",
     "prisma:generate": "prisma generate",
+    "postinstall": "prisma generate",
     "setup:init": "node scripts/setup.mjs"
   },
   "dependencies": {

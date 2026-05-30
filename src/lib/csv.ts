@@ -43,7 +43,7 @@ export function parseOptionalLink(raw: string): string | null {
 export const RATER_IMPORT_HEADERS = [
   "Name",
   "Email",
-  "is_admin",
+  "role",
   "Passcode",
   "Expires At",
 ] as const;

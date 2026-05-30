@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Props = {
   title: string;
@@ -11,8 +11,10 @@ type Props = {
 
 export function CsvImportPanel({ title, importAction, entity }: Props) {
   const base = `/api/admin/csv/${entity}`;
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -75,7 +77,30 @@ export function CsvImportPanel({ title, importAction, entity }: Props) {
           Download blank template
         </Link>
       </div>
-      <input type="file" name="file" accept=".csv" required disabled={pending} />
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          name="file"
+          accept=".csv"
+          required
+          disabled={pending}
+          className="sr-only"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            setFileName(file?.name ?? null);
+          }}
+        />
+        <button
+          type="button"
+          className="rounded border border-zinc-300 bg-zinc-50 px-3 py-1 text-sm hover:bg-zinc-100 disabled:opacity-60"
+          disabled={pending}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Choose file
+        </button>
+        <span className="text-sm text-zinc-600">{fileName ?? "No file selected"}</span>
+      </div>
       {error ? (
         <p className="text-sm text-red-700" role="alert">
           {error}

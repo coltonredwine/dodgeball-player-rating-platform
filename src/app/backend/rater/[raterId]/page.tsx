@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
-import { getSession } from "@/lib/auth";
+import { resolveSession } from "@/lib/auth";
 import { getRaterProgress } from "@/lib/completion";
 import { METRIC_FIELDS } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { formatRaterExportFilename } from "@/lib/rater-export";
-import { isAdminLike } from "@/lib/rbac";
+import { isBackendUser } from "@/lib/rbac";
 import { getLatestRaterSubmission } from "@/lib/rater-submission";
 
 export default async function RaterPreviewPage({
@@ -14,9 +14,9 @@ export default async function RaterPreviewPage({
 }: {
   params: Promise<{ raterId: string }>;
 }) {
-  const session = await getSession();
+  const session = await resolveSession();
   if (!session) redirect("/login");
-  if (!isAdminLike(session)) redirect("/rate");
+  if (!isBackendUser(session)) redirect("/rate");
 
   const { raterId } = await params;
   const [rater, submission, activePlayers] = await Promise.all([

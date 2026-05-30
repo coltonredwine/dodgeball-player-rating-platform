@@ -1,7 +1,11 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { prisma } from "@/lib/db";
+import { dbRoleToSessionRole } from "@/lib/rbac";
 
-type SessionRole = "rater" | "admin" | "superadmin";
+type SessionRole = "rater" | "manager" | "admin" | "superadmin";
+
+export type { SessionRole };
 
 export type AppSession = {
   role: SessionRole;
@@ -52,6 +56,23 @@ export async function getSession(): Promise<AppSession | null> {
   } catch {
     return null;
   }
+}
+
+/** Resolves DB-backed role for rater sessions so permissions stay current. */
+export async function resolveSession(): Promise<AppSession | null> {
+  const session = await getSession();
+  if (!session) return null;
+  if (!session.raterId) return session;
+
+  const rater = await prisma.rater.findUnique({ where: { id: session.raterId } });
+  if (!rater || !rater.active) return null;
+
+  return {
+    ...session,
+    role: dbRoleToSessionRole(rater.role),
+    name: rater.name,
+    email: rater.email,
+  };
 }
 
 export async function requireSession() {

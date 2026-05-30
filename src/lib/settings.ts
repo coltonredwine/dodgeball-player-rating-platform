@@ -23,6 +23,7 @@ export async function setStringSetting(key: string, value: string) {
   });
 }
 
+export const RATE_PAGE_TITLE_KEY = "rate_page_title";
 export const RATE_PAGE_BUTTON_TITLE_KEY = "rate_page_button_title";
 export const RATE_PAGE_BUTTON_URL_KEY = "rate_page_button_url";
 
