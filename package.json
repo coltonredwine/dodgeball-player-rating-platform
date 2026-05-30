@@ -11,7 +11,7 @@
     "prisma:generate": "prisma generate",
     "postinstall": "prisma generate",
     "setup:init": "node scripts/setup.mjs",
-    "render:start": "prisma migrate deploy && npm run setup:init && npm run start"
+    "render:start": "node scripts/render-migrate.mjs && npm run setup:init && npm run start"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

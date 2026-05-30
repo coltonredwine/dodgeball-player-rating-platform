@@ -102,7 +102,7 @@ Use `render.yaml` to provision:
 npm run render:start
 ```
 
-Do **not** use `prisma db push` in production.
+If deploy fails with **P3005**, the production database was originally created with `db push`. The `render:start` script baselines that database automatically before running migrations — no Render Shell required.
 
 Required env vars:
 - `DATABASE_URL`
