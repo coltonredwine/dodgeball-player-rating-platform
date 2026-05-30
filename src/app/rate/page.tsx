@@ -93,6 +93,10 @@ export default async function RatePage() {
             </a>
           ) : null}
         </div>
+        <p className="mt-2 text-sm text-zinc-600">
+          Your progress is saved automatically. If you log out and return later, your scores will
+          still be here.
+        </p>
         <RatingGuideModal userKey={session.email} />
         {!scoringOpen && (
           <p className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
