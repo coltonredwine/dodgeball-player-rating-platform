@@ -1,21 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
-import { BackendSettingsForm } from "@/components/backend-settings-form";
 import { CsvImportPanel } from "@/components/csv-import-panel";
 import { PlayersEditor } from "@/components/players-editor";
 import { RatersEditor } from "@/components/raters-editor";
 import { resolveSession } from "@/lib/auth";
 import { formatProgressLabel, getRaterProgress } from "@/lib/completion";
 import { prisma } from "@/lib/db";
+import { getNavLinks } from "@/lib/nav";
 import { isAdminLike, isBackendUser, isSuperadmin } from "@/lib/rbac";
-import {
-  RATE_PAGE_BUTTON_TITLE_KEY,
-  RATE_PAGE_BUTTON_URL_KEY,
-  RATE_PAGE_TITLE_KEY,
-  getBooleanSetting,
-  getStringSetting,
-} from "@/lib/settings";
 
 export default async function BackendPage({
   searchParams,
@@ -30,23 +23,19 @@ export default async function BackendPage({
   const importError = query.importError;
   const importWarnings = query.importWarnings;
 
-  const [players, raters, submissions, scoringOpen, ratePageTitle, rateButtonTitle, rateButtonUrl] =
-    await Promise.all([
-      prisma.player.findMany({ orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }),
-      prisma.rater.findMany({ orderBy: { name: "asc" } }),
-      prisma.ratingSubmission.findMany({
-        include: { rater: true, ratings: true },
-        orderBy: { updatedAt: "desc" },
-      }),
-      getBooleanSetting("scoring_open", true),
-      getStringSetting(RATE_PAGE_TITLE_KEY, ""),
-      getStringSetting(RATE_PAGE_BUTTON_TITLE_KEY, ""),
-      getStringSetting(RATE_PAGE_BUTTON_URL_KEY, ""),
-    ]);
+  const [players, raters, submissions] = await Promise.all([
+    prisma.player.findMany({ orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }),
+    prisma.rater.findMany({ orderBy: { name: "asc" } }),
+    prisma.ratingSubmission.findMany({
+      include: { rater: true, ratings: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
 
   const superadmin = isSuperadmin(session);
   const adminLike = isAdminLike(session);
   const activePlayersCount = players.filter((player) => player.active).length;
+  const activePlayerIds = players.filter((player) => player.active).map((player) => player.id);
   const latestSubmissionByRater = new Map<string, (typeof submissions)[number]>();
   for (const submission of submissions) {
     if (!latestSubmissionByRater.has(submission.raterId)) {
@@ -55,12 +44,12 @@ export default async function BackendPage({
   }
 
   return (
-    <main className="bg-white text-zinc-900">
-      <AppNav canSeeBackend displayName={session.name || session.email} />
-      <section className="mx-auto max-w-7xl space-y-8 px-4 py-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Backend</h1>
-          <div className="flex gap-2">
+    <main className="min-w-0 overflow-x-hidden bg-white text-zinc-900">
+      <AppNav links={getNavLinks(session)} displayName={session.name || session.email} />
+      <section className="mx-auto min-w-0 max-w-7xl space-y-8 px-3 py-6 sm:px-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-semibold">Admin</h1>
+          <div className="flex flex-wrap gap-2">
             <Link
               className="rounded border border-zinc-300 px-3 py-1 text-sm"
               href="/api/admin/export/all-raters"
@@ -82,76 +71,13 @@ export default async function BackendPage({
           </p>
         ) : null}
 
-        {superadmin && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <BackendSettingsForm
-              className="space-y-2 rounded border border-zinc-200 p-4"
-              action="/api/admin/settings/scoring"
-            >
-              <h2 className="font-semibold">Scoring window</h2>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="scoringOpen" value="true" defaultChecked={scoringOpen} />
-                Open for submissions
-              </label>
-              <button className="block rounded bg-zinc-900 px-3 py-1 text-sm text-white" type="submit">
-                Save scoring setting
-              </button>
-            </BackendSettingsForm>
-
-            <BackendSettingsForm
-              className="space-y-2 rounded border border-zinc-200 p-4"
-              action="/api/admin/settings/rate-button"
-            >
-              <h2 className="font-semibold">Rate page</h2>
-              <p className="text-xs text-zinc-600">
-                Customize the page title and optional link button shown at the top of the rating
-                page.
-              </p>
-              <label className="block text-sm">
-                Page title
-                <input
-                  className="mt-1 w-full rounded border border-zinc-300 px-2 py-1"
-                  type="text"
-                  name="pageTitle"
-                  defaultValue={ratePageTitle}
-                  placeholder="Rate Players"
-                />
-              </label>
-              <label className="block text-sm">
-                Button title
-                <input
-                  className="mt-1 w-full rounded border border-zinc-300 px-2 py-1"
-                  type="text"
-                  name="buttonTitle"
-                  defaultValue={rateButtonTitle}
-                  placeholder="e.g. View rules"
-                />
-              </label>
-              <label className="block text-sm">
-                Button URL
-                <input
-                  className="mt-1 w-full rounded border border-zinc-300 px-2 py-1"
-                  type="url"
-                  name="buttonUrl"
-                  defaultValue={rateButtonUrl}
-                  placeholder="https://..."
-                />
-              </label>
-              <button className="block rounded bg-zinc-900 px-3 py-1 text-sm text-white" type="submit">
-                Save rate page settings
-              </button>
-            </BackendSettingsForm>
-          </div>
-        )}
-
-        <section>
+        <section className="min-w-0">
           <h2 className="text-lg font-semibold">Completion view</h2>
-          <div className="mt-2 overflow-x-auto rounded border border-zinc-200">
+          <div className="mt-2 min-w-0 overflow-x-auto rounded border border-zinc-200">
             <table className="w-full border-collapse text-xs">
               <thead className="bg-zinc-50 text-left text-zinc-700">
                 <tr className="border-b border-zinc-200">
                   <th className="px-2 py-1.5 font-medium">Rater</th>
-                  <th className="px-2 py-1.5 font-medium">Email</th>
                   <th className="px-2 py-1.5 font-medium">Status</th>
                   <th className="px-2 py-1.5 font-medium">Preview</th>
                   <th className="px-2 py-1.5 font-medium">Export</th>
@@ -163,17 +89,15 @@ export default async function BackendPage({
                   const progress = getRaterProgress(
                     latest?.ratings ?? [],
                     activePlayersCount,
-                    latest?.submittedAt,
-                    latest?.status,
+                    activePlayerIds,
                   );
                   const statusLabel = formatProgressLabel(progress, activePlayersCount);
 
                   return (
                     <tr key={rater.id} className="border-b border-zinc-100 last:border-b-0">
                       <td className="px-2 py-1.5 whitespace-nowrap">{rater.name}</td>
-                      <td className="px-2 py-1.5 text-zinc-600">{rater.email}</td>
                       <td className="px-2 py-1.5">
-                        {progress.isSubmittedComplete ? (
+                        {progress.isFullyComplete ? (
                           <span className="inline-flex items-center gap-1 font-medium capitalize">
                             Complete <span aria-hidden="true">✅</span>
                           </span>
@@ -203,11 +127,11 @@ export default async function BackendPage({
                             }`}
                             href={`/api/admin/export/rater/${rater.id}`}
                           >
-                            Download CSV
+                            Download
                           </a>
                         ) : (
                           <span className="inline-block rounded bg-zinc-200 px-2 py-0.5 text-[11px] font-medium text-zinc-500">
-                            Download CSV
+                            Download
                           </span>
                         )}
                       </td>
@@ -219,11 +143,11 @@ export default async function BackendPage({
           </div>
         </section>
 
-        <section className="grid gap-6 md:grid-cols-2">
-          <div>
+        <section className="grid min-w-0 gap-6 md:grid-cols-2">
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold">Players</h2>
             {adminLike ? (
-              <div className="mt-2 space-y-4">
+              <div className="mt-2 min-w-0 space-y-4">
                 <PlayersEditor
                   players={players.map((player) => ({
                     id: player.id,
@@ -246,7 +170,8 @@ export default async function BackendPage({
                 ) : null}
               </div>
             ) : (
-              <table className="mt-2 min-w-full border-collapse rounded border border-zinc-200 text-sm">
+              <div className="mt-2 min-w-0 overflow-x-auto rounded border border-zinc-200">
+                <table className="w-full border-collapse text-sm">
                 <thead className="bg-zinc-100">
                   <tr>
                     <th className="px-3 py-2 text-left">First</th>
@@ -265,13 +190,14 @@ export default async function BackendPage({
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </div>
             )}
           </div>
 
-          <div>
+          <div className="min-w-0">
             <h2 className="text-lg font-semibold">Raters</h2>
-            <div className="mt-2 space-y-4">
+            <div className="mt-2 min-w-0 space-y-4">
               <RatersEditor
                 raters={raters.map((rater) => ({
                   id: rater.id,

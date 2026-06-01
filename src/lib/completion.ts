@@ -1,6 +1,7 @@
 import { METRIC_FIELDS } from "@/lib/constants";
 
 export type SavedRating = {
+  playerId?: string;
   unknownPlayer: boolean;
   power: number | null;
   accuracy: number | null;
@@ -25,22 +26,36 @@ export function hasAnyRatingData(rating: SavedRating) {
 export function getRaterProgress(
   ratings: SavedRating[],
   activePlayersCount: number,
-  submittedAt: Date | null | undefined,
-  status?: "in_progress" | "submitted",
+  activePlayerIds?: string[],
 ) {
-  const completeCount = ratings.filter(isCompleteSavedRow).length;
-  const enteredCount = ratings.filter(hasAnyRatingData).length;
-  const incompleteCount = Math.max(activePlayersCount - completeCount, 0);
-  const isFullyComplete = activePlayersCount > 0 && completeCount === activePlayersCount;
-  const isSubmittedComplete =
-    isFullyComplete && (Boolean(submittedAt) || status === "submitted");
+  const ratingByPlayerId = new Map(
+    ratings.filter((rating) => rating.playerId).map((rating) => [rating.playerId!, rating]),
+  );
+
+  let completeCount = 0;
+  let enteredCount = 0;
+
+  if (activePlayerIds && activePlayerIds.length > 0) {
+    for (const playerId of activePlayerIds) {
+      const rating = ratingByPlayerId.get(playerId);
+      if (!rating) continue;
+      if (hasAnyRatingData(rating)) enteredCount += 1;
+      if (isCompleteSavedRow(rating)) completeCount += 1;
+    }
+  } else {
+    completeCount = ratings.filter(isCompleteSavedRow).length;
+    enteredCount = ratings.filter(hasAnyRatingData).length;
+  }
+
+  const playerTotal = activePlayerIds?.length ?? activePlayersCount;
+  const incompleteCount = Math.max(playerTotal - completeCount, 0);
+  const isFullyComplete = playerTotal > 0 && completeCount === playerTotal;
 
   return {
     completeCount,
     enteredCount,
     incompleteCount,
     isFullyComplete,
-    isSubmittedComplete,
     hasAnySavedRows: enteredCount > 0,
   };
 }
@@ -49,7 +64,7 @@ export function formatProgressLabel(
   progress: ReturnType<typeof getRaterProgress>,
   activePlayersCount: number,
 ) {
-  if (progress.isSubmittedComplete) {
+  if (progress.isFullyComplete) {
     return "complete";
   }
   if (progress.enteredCount === 0) {

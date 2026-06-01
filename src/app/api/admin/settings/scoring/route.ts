@@ -1,6 +1,7 @@
+import { NextResponse } from "next/server";
 import { requireSuperadmin } from "@/lib/api-auth";
 import { backendRedirect } from "@/lib/request-url";
-import { setBooleanSetting } from "@/lib/settings";
+import { saveScoringWindowSettings } from "@/lib/scoring-window";
 
 export async function POST(request: Request) {
   const auth = await requireSuperadmin();
@@ -8,6 +9,17 @@ export async function POST(request: Request) {
 
   const formData = await request.formData();
   const scoringOpen = formData.get("scoringOpen") === "true";
-  await setBooleanSetting("scoring_open", scoringOpen);
-  return backendRedirect(request);
+  const closeAtRaw = String(formData.get("scoringCloseAt") ?? "").trim();
+
+  if (closeAtRaw) {
+    const closeAt = new Date(closeAtRaw);
+    if (Number.isNaN(closeAt.getTime())) {
+      return NextResponse.json({ error: "Invalid close date/time" }, { status: 400 });
+    }
+    await saveScoringWindowSettings(scoringOpen, closeAt.toISOString());
+  } else {
+    await saveScoringWindowSettings(scoringOpen, null);
+  }
+
+  return backendRedirect(request, undefined, "/backend/settings");
 }

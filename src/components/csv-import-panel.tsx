@@ -58,7 +58,7 @@ export function CsvImportPanel({ title, importAction, entity }: Props) {
 
   return (
     <form
-      className="space-y-3 rounded border border-zinc-200 p-4"
+      className="min-w-0 space-y-3 rounded border border-zinc-200 p-4"
       onSubmit={onSubmit}
       encType="multipart/form-data"
     >
@@ -99,7 +99,7 @@ export function CsvImportPanel({ title, importAction, entity }: Props) {
         >
           Choose file
         </button>
-        <span className="text-sm text-zinc-600">{fileName ?? "No file selected"}</span>
+        <span className="min-w-0 break-all text-sm text-zinc-600">{fileName ?? "No file selected"}</span>
       </div>
       {error ? (
         <p className="text-sm text-red-700" role="alert">

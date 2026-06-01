@@ -36,5 +36,5 @@ export async function POST(request: Request) {
     await setStringSetting(RATE_PAGE_BUTTON_URL_KEY, "");
   }
 
-  return backendRedirect(request);
+  return backendRedirect(request, undefined, "/backend/settings");
 }

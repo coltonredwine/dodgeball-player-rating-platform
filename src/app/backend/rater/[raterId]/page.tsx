@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
+import { RaterScoresTable } from "@/components/rater-scores-table";
 import { resolveSession } from "@/lib/auth";
 import { getRaterProgress } from "@/lib/completion";
-import { METRIC_FIELDS } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { formatRaterExportFilename } from "@/lib/rater-export";
+import { getNavLinks } from "@/lib/nav";
 import { isBackendUser } from "@/lib/rbac";
 import { getLatestRaterSubmission } from "@/lib/rater-submission";
 
@@ -33,12 +34,12 @@ export default async function RaterPreviewPage({
   const ratingByPlayerId = new Map(
     (submission?.ratings ?? []).map((rating) => [rating.playerId, rating]),
   );
+  const activePlayerIds = activePlayers.map((player) => player.id);
   const activePlayersCount = activePlayers.length;
   const progress = getRaterProgress(
     submission?.ratings ?? [],
     activePlayersCount,
-    submission?.submittedAt,
-    submission?.status,
+    activePlayerIds,
   );
   const exportFilename = formatRaterExportFilename(
     rater.name,
@@ -46,13 +47,13 @@ export default async function RaterPreviewPage({
   );
 
   return (
-    <main className="bg-white text-zinc-900">
-      <AppNav canSeeBackend displayName={session.name || session.email} />
-      <section className="mx-auto max-w-7xl space-y-4 px-4 py-6">
+    <main className="min-w-0 overflow-x-hidden bg-white text-zinc-900">
+      <AppNav links={getNavLinks(session)} displayName={session.name || session.email} />
+      <section className="mx-auto min-w-0 max-w-7xl space-y-4 px-3 py-6 sm:px-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Link className="text-sm text-blue-700 underline" href="/backend">
-              ← Back to backend
+              ← Back to admin
             </Link>
             <h1 className="mt-2 text-2xl font-semibold">{rater.name}</h1>
             <p className="text-sm text-zinc-600">{rater.email}</p>
@@ -70,7 +71,7 @@ export default async function RaterPreviewPage({
         </div>
 
         <p className="text-sm text-zinc-700">
-          {progress.isSubmittedComplete ? (
+          {progress.isFullyComplete ? (
             <span className="inline-flex items-center gap-1 font-medium">
               Complete <span aria-hidden="true">✅</span>
             </span>
@@ -80,12 +81,6 @@ export default async function RaterPreviewPage({
               incomplete
             </>
           )}
-          {submission?.submittedAt ? (
-            <span className="text-zinc-500">
-              {" "}
-              · Submitted {submission.submittedAt.toLocaleString()}
-            </span>
-          ) : null}
         </p>
 
         {!submission || !progress.hasAnySavedRows ? (
@@ -93,41 +88,15 @@ export default async function RaterPreviewPage({
             No scores saved yet for this rater.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded border border-zinc-200">
-            <table className="min-w-full border-collapse text-sm">
-              <thead className="bg-zinc-100 text-zinc-900">
-                <tr className="border-b border-zinc-200">
-                  <th className="px-3 py-2 text-left">Player</th>
-                  {METRIC_FIELDS.map((field) => (
-                    <th key={field} className="px-3 py-2 text-center capitalize">
-                      {field}
-                    </th>
-                  ))}
-                  <th className="px-3 py-2 text-center">Unknown</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activePlayers.map((player) => {
-                  const rating = ratingByPlayerId.get(player.id);
-                  return (
-                    <tr key={player.id} className="border-b border-zinc-100 last:border-b-0">
-                      <td className="px-3 py-2">
-                        {player.firstName} {player.lastName}
-                      </td>
-                      {METRIC_FIELDS.map((field) => (
-                        <td key={field} className="px-3 py-2 text-center text-zinc-700">
-                          {rating?.[field] ?? "—"}
-                        </td>
-                      ))}
-                      <td className="px-3 py-2 text-center text-zinc-700">
-                        {rating?.unknownPlayer ? "Yes" : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <RaterScoresTable
+            rows={activePlayers.map((player) => ({
+              playerId: player.id,
+              firstName: player.firstName,
+              lastName: player.lastName,
+              link: player.link,
+              rating: ratingByPlayerId.get(player.id) ?? null,
+            }))}
+          />
         )}
 
         <p className="text-xs text-zinc-500">Export filename: {exportFilename}</p>

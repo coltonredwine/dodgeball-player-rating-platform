@@ -4,13 +4,13 @@ import { RatingGuideModal } from "@/components/rating-guide-modal";
 import { RatingGrid } from "@/components/rating-grid";
 import { getSession, resolveSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { isBackendUser } from "@/lib/rbac";
+import { getNavLinks } from "@/lib/nav";
 import { getOrCreateSubmission } from "@/lib/rating";
+import { isScoringOpen } from "@/lib/scoring-window";
 import {
   RATE_PAGE_BUTTON_TITLE_KEY,
   RATE_PAGE_BUTTON_URL_KEY,
   RATE_PAGE_TITLE_KEY,
-  getBooleanSetting,
   getStringSetting,
 } from "@/lib/settings";
 
@@ -23,12 +23,11 @@ export default async function RatePage() {
   }
 
   const [scoringOpen, ratePageTitle, rateButtonTitle, rateButtonUrl] = await Promise.all([
-    getBooleanSetting("scoring_open", true),
+    isScoringOpen(),
     getStringSetting(RATE_PAGE_TITLE_KEY, ""),
     getStringSetting(RATE_PAGE_BUTTON_TITLE_KEY, ""),
     getStringSetting(RATE_PAGE_BUTTON_URL_KEY, ""),
   ]);
-  const canSeeBackend = isBackendUser(session);
   const showRateButton = Boolean(rateButtonTitle && rateButtonUrl);
   const pageTitle = ratePageTitle.trim() || "Rate Players";
 
@@ -78,7 +77,7 @@ export default async function RatePage() {
 
   return (
     <main className="min-w-0 overflow-x-hidden bg-white text-zinc-900">
-      <AppNav canSeeBackend={canSeeBackend} displayName={session.name || session.email} />
+      <AppNav links={getNavLinks(session)} displayName={session.name || session.email} />
       <section className="mx-auto min-w-0 max-w-7xl px-3 py-6 sm:px-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold">{pageTitle}</h1>

@@ -132,7 +132,7 @@ export function RatersEditor({ raters, permissions }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       {permissions.canEdit ? (
         <p className="text-xs text-zinc-600">
           Click Edit on a rater to update their details. Leave passcode blank to keep the current
@@ -143,8 +143,9 @@ export function RatersEditor({ raters, permissions }: Props) {
       {message ? <p className="text-sm text-green-700">{message}</p> : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
 
-      <table className="min-w-full border-collapse rounded border border-zinc-200 text-sm">
-        <thead className="bg-zinc-100 text-zinc-900">
+      <div className="min-w-0 overflow-x-auto rounded border border-zinc-200">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-zinc-100 text-zinc-900">
           <tr>
             <th className="px-3 py-2 text-left">Name</th>
             <th className="px-3 py-2 text-left">Email</th>
@@ -174,7 +175,8 @@ export function RatersEditor({ raters, permissions }: Props) {
             />
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
 
       <ConfirmDialog
         open={deleteTargetId !== null}
@@ -188,11 +190,11 @@ export function RatersEditor({ raters, permissions }: Props) {
       />
 
       {permissions.canAdd ? (
-        <form className="space-y-2 rounded border border-zinc-200 p-4" onSubmit={addRater}>
+        <form className="min-w-0 space-y-2 rounded border border-zinc-200 p-4" onSubmit={addRater}>
           <h3 className="font-medium">Add rater</h3>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid min-w-0 gap-2 sm:grid-cols-2">
             <input
-              className="rounded border border-zinc-300 px-2 py-1"
+              className="min-w-0 w-full rounded border border-zinc-300 px-2 py-1"
               placeholder="Name"
               value={newRater.name}
               onChange={(event) =>
@@ -201,7 +203,7 @@ export function RatersEditor({ raters, permissions }: Props) {
               required
             />
             <input
-              className="rounded border border-zinc-300 px-2 py-1"
+              className="min-w-0 w-full rounded border border-zinc-300 px-2 py-1"
               placeholder="Email"
               type="email"
               value={newRater.email}
@@ -211,7 +213,7 @@ export function RatersEditor({ raters, permissions }: Props) {
               required
             />
             <select
-              className="rounded border border-zinc-300 px-2 py-1"
+              className="min-w-0 w-full rounded border border-zinc-300 px-2 py-1"
               value={newRater.role}
               onChange={(event) =>
                 setNewRater((current) => ({
@@ -227,7 +229,7 @@ export function RatersEditor({ raters, permissions }: Props) {
               ))}
             </select>
             <input
-              className="rounded border border-zinc-300 px-2 py-1"
+              className="min-w-0 w-full rounded border border-zinc-300 px-2 py-1"
               placeholder="Passcode (optional)"
               value={newRater.passcode}
               onChange={(event) =>

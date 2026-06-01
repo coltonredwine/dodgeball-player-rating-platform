@@ -12,8 +12,9 @@ export function getRequestOrigin(request: Request) {
 export function backendRedirect(
   request: Request,
   params?: Record<string, string>,
+  path = "/backend",
 ) {
-  const url = new URL("/backend", getRequestOrigin(request));
+  const url = new URL(path, getRequestOrigin(request));
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, value);

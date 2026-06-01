@@ -109,7 +109,7 @@ export function PlayersEditor({ players, permissions }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-3">
       <p className="text-xs text-zinc-600">
         Click Edit on a player to update their details. Existing scores stay attached.
       </p>
@@ -117,8 +117,9 @@ export function PlayersEditor({ players, permissions }: Props) {
       {message ? <p className="text-sm text-green-700">{message}</p> : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
 
-      <table className="min-w-full border-collapse rounded border border-zinc-200 text-sm">
-        <thead className="bg-zinc-100 text-zinc-900">
+      <div className="min-w-0 overflow-x-auto rounded border border-zinc-200">
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-zinc-100 text-zinc-900">
           <tr>
             <th className="px-3 py-2 text-left">First</th>
             <th className="px-3 py-2 text-left">Last</th>
@@ -147,7 +148,8 @@ export function PlayersEditor({ players, permissions }: Props) {
             />
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
 
       <ConfirmDialog
         open={deleteTargetId !== null}
@@ -160,11 +162,11 @@ export function PlayersEditor({ players, permissions }: Props) {
         }}
       />
 
-      <form className="space-y-2 rounded border border-zinc-200 p-4" onSubmit={addPlayer}>
+      <form className="min-w-0 space-y-2 rounded border border-zinc-200 p-4" onSubmit={addPlayer}>
         <h3 className="font-medium">Add player</h3>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
           <input
-            className="rounded border border-zinc-300 px-2 py-1"
+            className="min-w-0 w-full rounded border border-zinc-300 px-2 py-1"
             placeholder="First name"
             value={newPlayer.firstName}
             onChange={(event) =>
@@ -173,7 +175,7 @@ export function PlayersEditor({ players, permissions }: Props) {
             required
           />
           <input
-            className="rounded border border-zinc-300 px-2 py-1"
+            className="min-w-0 w-full rounded border border-zinc-300 px-2 py-1"
             placeholder="Last name"
             value={newPlayer.lastName}
             onChange={(event) =>
@@ -182,7 +184,7 @@ export function PlayersEditor({ players, permissions }: Props) {
             required
           />
           <input
-            className="rounded border border-zinc-300 px-2 py-1 sm:col-span-2"
+            className="min-w-0 w-full rounded border border-zinc-300 px-2 py-1 sm:col-span-2"
             placeholder="Link (optional)"
             value={newPlayer.link}
             onChange={(event) =>

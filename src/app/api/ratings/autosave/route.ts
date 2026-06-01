@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isScoringOpen } from "@/lib/scoring-window";
 import { autosaveSchema, normalizeRatingRow } from "@/lib/validation";
 
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (!(await isScoringOpen())) {
+    return NextResponse.json({ error: "Scoring is closed" }, { status: 403 });
+  }
 
   const parsed = autosaveSchema.safeParse(await request.json());
   if (!parsed.success) {

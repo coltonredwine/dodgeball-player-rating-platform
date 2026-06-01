@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getBooleanSetting } from "@/lib/settings";
+import { isScoringOpen } from "@/lib/scoring-window";
 import {
   autosaveSchema,
   isCompleteRatingRow,
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const scoringOpen = await getBooleanSetting("scoring_open", true);
+  const scoringOpen = await isScoringOpen();
   if (!scoringOpen) {
     return NextResponse.json({ error: "Scoring is closed" }, { status: 403 });
   }
