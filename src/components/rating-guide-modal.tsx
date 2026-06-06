@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Props = {
   userKey: string;
 };
 
 export function RatingGuideModal({ userKey }: Props) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const [todayKey] = useState(() => new Date().toISOString().slice(0, 10));
   const storageKey = useMemo(
     () => `rating-guide-ack:${userKey}:${todayKey}`,
@@ -17,7 +16,6 @@ export function RatingGuideModal({ userKey }: Props) {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(`rating-guide-ack:${userKey}:${todayKey}`) !== "true";
   });
-  const [canDismiss, setCanDismiss] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -28,16 +26,7 @@ export function RatingGuideModal({ userKey }: Props) {
     };
   }, [open]);
 
-  function handleScroll() {
-    const element = scrollRef.current;
-    if (!element || canDismiss) return;
-    const reachedBottom =
-      element.scrollTop + element.clientHeight >= element.scrollHeight - 8;
-    if (reachedBottom) setCanDismiss(true);
-  }
-
   function acknowledge() {
-    if (!canDismiss) return;
     localStorage.setItem(storageKey, "true");
     setOpen(false);
   }
@@ -56,16 +45,10 @@ export function RatingGuideModal({ userKey }: Props) {
           <h2 id="rating-guide-title" className="text-xl font-semibold">
             Dodgeball Rating Guide
           </h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Read this before rating. Scroll to the bottom to confirm you understand.
-          </p>
+          <p className="mt-1 text-sm text-zinc-600">Read this before rating.</p>
         </div>
 
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="space-y-4 overflow-y-auto p-4 text-sm text-zinc-800"
-        >
+        <div className="space-y-4 overflow-y-auto p-4 text-sm text-zinc-800">
           <p>
             This system creates consistent player rankings for league balance. Use on-court
             impact and rate each player on six skills from 1 to 7.
@@ -127,22 +110,13 @@ export function RatingGuideModal({ userKey }: Props) {
               players.
             </p>
           </div>
-
-          <p className="text-zinc-500">
-            Keep scrolling to enable the acknowledgment button.
-          </p>
         </div>
 
         <div className="border-t border-zinc-200 p-4">
           <button
             type="button"
             onClick={acknowledge}
-            disabled={!canDismiss}
-            className={`w-full rounded px-4 py-2 text-sm text-white ${
-              canDismiss
-                ? "bg-blue-600 hover:bg-blue-500"
-                : "bg-zinc-400 disabled:cursor-not-allowed"
-            }`}
+            className="w-full rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-500"
           >
             I understand the rating system
           </button>

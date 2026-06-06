@@ -6,6 +6,10 @@ import { getSession, resolveSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getNavLinks } from "@/lib/nav";
 import { getOrCreateSubmission } from "@/lib/rating";
+import {
+  isRaterScoringLocked,
+  syncCollectedSubmissionsForNewPlayers,
+} from "@/lib/collection";
 import { isScoringOpen } from "@/lib/scoring-window";
 import {
   RATE_PAGE_BUTTON_TITLE_KEY,
@@ -36,6 +40,8 @@ export default async function RatePage() {
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 
+  await syncCollectedSubmissionsForNewPlayers(players.length);
+
   const raterId =
     session.role === "superadmin"
       ? (
@@ -53,6 +59,10 @@ export default async function RatePage() {
       : session.raterId!;
 
   const submission = await getOrCreateSubmission(raterId);
+  const scoringLocked = isRaterScoringLocked(submission, scoringOpen);
+  const collectedLocked =
+    submission.collectionStatus === "collected" && scoringOpen && !submission.adminLocked;
+  const adminLocked = submission.adminLocked && scoringOpen;
   const existing = await prisma.playerRating.findMany({
     where: { submissionId: submission.id },
   });
@@ -102,8 +112,18 @@ export default async function RatePage() {
             Scoring is currently closed. Ratings are read-only.
           </p>
         )}
+        {collectedLocked ? (
+          <p className="mt-2 rounded border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-900">
+            Your scores have been collected and are read-only.
+          </p>
+        ) : null}
+        {adminLocked ? (
+          <p className="mt-2 rounded border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-800">
+            Your score sheet has been locked and is read-only.
+          </p>
+        ) : null}
         <div className="mt-4">
-          <RatingGrid submissionId={submission.id} locked={!scoringOpen} initialRows={initialRows} />
+          <RatingGrid submissionId={submission.id} locked={scoringLocked} initialRows={initialRows} />
         </div>
       </section>
     </main>

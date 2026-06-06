@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isSubmissionScoringLocked } from "@/lib/collection";
 import { isScoringOpen } from "@/lib/scoring-window";
 import { autosaveSchema, normalizeRatingRow } from "@/lib/validation";
 
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  if (!(await isScoringOpen())) {
-    return NextResponse.json({ error: "Scoring is closed" }, { status: 403 });
-  }
 
   const parsed = autosaveSchema.safeParse(await request.json());
   if (!parsed.success) {
@@ -25,6 +22,10 @@ export async function POST(request: Request) {
 
   if (session.role !== "superadmin" && submission.raterId !== session.raterId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (await isSubmissionScoringLocked(submissionId, await isScoringOpen())) {
+    return NextResponse.json({ error: "Scoring is closed" }, { status: 403 });
   }
 
   const now = new Date();

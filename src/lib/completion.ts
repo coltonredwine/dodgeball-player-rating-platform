@@ -60,6 +60,26 @@ export function getRaterProgress(
   };
 }
 
+export type CompletionCategory = "complete" | "incomplete" | "not_started";
+
+export function getCompletionCategory(
+  progress: ReturnType<typeof getRaterProgress>,
+): CompletionCategory {
+  if (progress.isFullyComplete) return "complete";
+  if (progress.enteredCount === 0) return "not_started";
+  return "incomplete";
+}
+
+export function tallyCompletionCategories(categories: CompletionCategory[]) {
+  return categories.reduce(
+    (counts, category) => {
+      counts[category] += 1;
+      return counts;
+    },
+    { complete: 0, incomplete: 0, not_started: 0 },
+  );
+}
+
 export function formatProgressLabel(
   progress: ReturnType<typeof getRaterProgress>,
   activePlayersCount: number,

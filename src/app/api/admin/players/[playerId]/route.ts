@@ -3,6 +3,7 @@ import { requireAdmin, requireSuperadmin } from "@/lib/api-auth";
 import { parseOptionalLink } from "@/lib/csv";
 import { prisma } from "@/lib/db";
 import { isSuperadmin } from "@/lib/rbac";
+import { syncCollectedSubmissionsForNewPlayers } from "@/lib/collection";
 
 export async function PATCH(
   request: Request,
@@ -57,6 +58,10 @@ export async function PATCH(
       active: body.active ?? existing.active,
     },
   });
+
+  if (player.active) {
+    await syncCollectedSubmissionsForNewPlayers();
+  }
 
   return NextResponse.json({ player });
 }

@@ -6,6 +6,9 @@ type Props = {
   message: string;
   confirmLabel?: string;
   pending?: boolean;
+  confirmDisabled?: boolean;
+  confirmClassName?: string;
+  children?: React.ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -16,6 +19,9 @@ export function ConfirmDialog({
   message,
   confirmLabel = "Delete",
   pending = false,
+  confirmDisabled = false,
+  confirmClassName = "bg-red-600",
+  children,
   onConfirm,
   onCancel,
 }: Props) {
@@ -33,6 +39,7 @@ export function ConfirmDialog({
           {title}
         </h3>
         <p className="mt-2 text-sm text-zinc-600">{message}</p>
+        {children}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
@@ -44,8 +51,8 @@ export function ConfirmDialog({
           </button>
           <button
             type="button"
-            className="rounded bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-50"
-            disabled={pending}
+            className={`rounded px-3 py-1 text-sm text-white disabled:opacity-50 ${confirmClassName}`}
+            disabled={pending || confirmDisabled}
             onClick={onConfirm}
           >
             {pending ? `${confirmLabel}…` : confirmLabel}

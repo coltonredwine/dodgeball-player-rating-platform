@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isSubmissionScoringLocked } from "@/lib/collection";
 import { isScoringOpen } from "@/lib/scoring-window";
 import {
   autosaveSchema,
@@ -12,11 +13,6 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const scoringOpen = await isScoringOpen();
-  if (!scoringOpen) {
-    return NextResponse.json({ error: "Scoring is closed" }, { status: 403 });
-  }
-
   const parsed = autosaveSchema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
@@ -27,8 +23,13 @@ export async function POST(request: Request) {
   if (!submission) {
     return NextResponse.json({ error: "Submission not found" }, { status: 404 });
   }
+
   if (session.role !== "superadmin" && submission.raterId !== session.raterId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (await isSubmissionScoringLocked(submissionId, await isScoringOpen())) {
+    return NextResponse.json({ error: "Scoring is closed" }, { status: 403 });
   }
 
   const activePlayers = await prisma.player.findMany({

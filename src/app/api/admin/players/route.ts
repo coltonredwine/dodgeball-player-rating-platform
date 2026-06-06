@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/api-auth";
 import { parseOptionalLink } from "@/lib/csv";
 import { prisma } from "@/lib/db";
 import { playerIdFromNames } from "@/lib/players";
+import { syncCollectedSubmissionsForNewPlayers } from "@/lib/collection";
 
 export async function POST(request: Request) {
   const auth = await requireAdmin();
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
       active: body.active ?? true,
     },
   });
+
+  if (player.active) {
+    await syncCollectedSubmissionsForNewPlayers();
+  }
 
   return NextResponse.json({ player });
 }

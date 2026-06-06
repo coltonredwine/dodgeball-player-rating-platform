@@ -4,6 +4,7 @@ import { playerIdFromNames } from "@/lib/players";
 import { requireSuperadmin } from "@/lib/api-auth";
 import { parseCsv, parseOptionalLink } from "@/lib/csv";
 import { backendRedirect } from "@/lib/request-url";
+import { syncCollectedSubmissionsForNewPlayers } from "@/lib/collection";
 
 type PlayerImportRow = {
   firstName: string;
@@ -79,6 +80,8 @@ export async function POST(request: Request) {
       });
     }),
   ]);
+
+  await syncCollectedSubmissionsForNewPlayers(normalized.length);
 
   const redirectParams: Record<string, string> = {};
   if (errors.length) {
