@@ -12,12 +12,19 @@ import {
   CaptainPlayerPickActions,
 } from "@/components/captain-pick-controls";
 import { filterPlayersByQuery } from "@/lib/player-search";
+import { CaptainPoolSortControl } from "@/components/captain-pool-sort-control";
 import { PlayerPoolRankSections } from "@/components/player-pool-rank-sections";
 import {
   resolveGhostRosterPlayers,
   sortUndraftedWithBookmarks,
 } from "@/lib/draft/bookmarks";
 import { groupPoolPlayersIntoSections } from "@/lib/draft/pool-sections";
+import {
+  DEFAULT_CAPTAIN_POOL_SORT,
+  sortPoolPlayersByField,
+  sortPoolSectionsByField,
+  type CaptainPoolSortField,
+} from "@/lib/draft/pool-sort";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
 import type { QuotaLimits } from "@/lib/draft/quotas";
 import type { PublicBoardVisibility } from "@/lib/draft/public-board";
@@ -512,6 +519,7 @@ export function DraftBoardTvView({
   linkPlayerProfiles = true,
 }: Props) {
   const [search, setSearch] = useState("");
+  const [poolSort, setPoolSort] = useState<CaptainPoolSortField>(DEFAULT_CAPTAIN_POOL_SORT);
   const isCaptainView = captain != null;
   const showRanks = visibility.showRanks;
   const showSkillRatings = visibility.showSkillRatings;
@@ -529,14 +537,19 @@ export function DraftBoardTvView({
     return players;
   }, [captain, isCaptainView, search, state.undrafted]);
 
-  const poolSections = useMemo(
-    () =>
-      showRanks
-        ? groupPoolPlayersIntoSections(poolPlayers, {
-            bookmarkIds: isCaptainView && captain ? captain.flaggedPlayerIds : undefined,
-          })
-        : null,
-    [captain, isCaptainView, poolPlayers, showRanks],
+  const poolSections = useMemo(() => {
+    if (!showRanks) return null;
+
+    const sections = groupPoolPlayersIntoSections(poolPlayers, {
+      bookmarkIds: isCaptainView && captain ? captain.flaggedPlayerIds : undefined,
+    });
+
+    return isCaptainView ? sortPoolSectionsByField(sections, poolSort) : sections;
+  }, [captain, isCaptainView, poolPlayers, poolSort, showRanks]);
+
+  const sortedFlatPoolPlayers = useMemo(
+    () => (isCaptainView ? sortPoolPlayersByField(poolPlayers, poolSort) : poolPlayers),
+    [isCaptainView, poolPlayers, poolSort],
   );
 
   const captainGhostPlayers = useMemo(() => {
@@ -728,6 +741,13 @@ export function DraftBoardTvView({
                 className="mt-2 w-full rounded-lg border border-[var(--draft-divider)] bg-[var(--draft-surface-1)] px-3 py-2 text-sm text-[var(--draft-text-high)] placeholder:text-[var(--draft-text-disabled)]"
               />
             ) : null}
+            {isCaptainView && poolPlayers.length > 0 ? (
+              <CaptainPoolSortControl
+                value={poolSort}
+                onChange={setPoolSort}
+                className="mt-2.5"
+              />
+            ) : null}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {poolPlayers.length === 0 ? (
@@ -752,7 +772,7 @@ export function DraftBoardTvView({
                 )}
               />
             ) : (
-              poolPlayers.map((player) => (
+              sortedFlatPoolPlayers.map((player) => (
                 <PlayerPoolCard
                   key={player.playerId}
                   player={player}

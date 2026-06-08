@@ -18,9 +18,15 @@ import { formatRankAverage } from "@/lib/rankings/rank-labels";
 import { formatCalcRankDisplay, type RankThresholds } from "@/lib/rankings/thresholds";
 import { DRAFT_ROOM_DARK } from "@/lib/draft-room-theme";
 import type { QuotaLimits } from "@/lib/draft/quotas";
+import { CaptainPoolSortControl } from "@/components/captain-pool-sort-control";
 import { PlayerPoolRankSections } from "@/components/player-pool-rank-sections";
 import { sortUndraftedWithBookmarks } from "@/lib/draft/bookmarks";
 import { groupPoolPlayersIntoSections } from "@/lib/draft/pool-sections";
+import {
+  DEFAULT_CAPTAIN_POOL_SORT,
+  sortPoolSectionsByField,
+  type CaptainPoolSortField,
+} from "@/lib/draft/pool-sort";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
 import { filterPlayersByQuery } from "@/lib/player-search";
 import type { AppNavData } from "@/lib/nav";
@@ -173,6 +179,7 @@ function CaptainPickPanel({
   const showRanks = state.draft.displaySettings.showRanksOnCaptainView;
   const isMobile = variant === "mobile";
   const [search, setSearch] = useState("");
+  const [poolSort, setPoolSort] = useState<CaptainPoolSortField>(DEFAULT_CAPTAIN_POOL_SORT);
   const poolPlayers = useMemo(() => {
     let players = sortUndraftedWithBookmarks(state.undrafted, state.flaggedPlayerIds);
     if (isMobile) {
@@ -180,13 +187,12 @@ function CaptainPickPanel({
     }
     return players;
   }, [isMobile, search, state.flaggedPlayerIds, state.undrafted]);
-  const poolSections = useMemo(
-    () =>
-      groupPoolPlayersIntoSections(poolPlayers, {
-        bookmarkIds: state.flaggedPlayerIds,
-      }),
-    [poolPlayers, state.flaggedPlayerIds],
-  );
+  const poolSections = useMemo(() => {
+    const sections = groupPoolPlayersIntoSections(poolPlayers, {
+      bookmarkIds: state.flaggedPlayerIds,
+    });
+    return sortPoolSectionsByField(sections, poolSort);
+  }, [poolPlayers, poolSort, state.flaggedPlayerIds]);
 
   function handleChoose(playerId: string) {
     setPendingPickId(playerId);
@@ -256,6 +262,10 @@ function CaptainPickPanel({
           onChange={setSearch}
           className="w-full rounded-lg border border-[var(--draft-divider)] bg-[var(--draft-surface-1)] px-3 py-2 text-sm text-[var(--draft-text-high)] placeholder:text-[var(--draft-text-disabled)]"
         />
+      ) : null}
+
+      {poolPlayers.length > 0 ? (
+        <CaptainPoolSortControl value={poolSort} onChange={setPoolSort} />
       ) : null}
 
       <div className="space-y-1 lg:space-y-2">
