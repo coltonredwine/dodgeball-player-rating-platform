@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 
 const DEFAULT_AVATAR = "/images/default-avatar.png";
 
@@ -10,6 +10,8 @@ type Props = {
   name: string;
   size?: number;
   className?: string;
+  /** When false, avatar is not clickable (recommended for public boards). */
+  linkToProfile?: boolean;
 };
 
 function avatarImageSrc(playerId: string | null | undefined, link: string | null | undefined) {
@@ -22,11 +24,23 @@ function avatarImageSrc(playerId: string | null | undefined, link: string | null
   return null;
 }
 
-export function PlayerAvatar({ playerId, link, name, size = 40, className = "" }: Props) {
+export function PlayerAvatar({
+  playerId,
+  link,
+  name,
+  size = 40,
+  className = "",
+  linkToProfile = true,
+}: Props) {
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [playerId, link]);
 
   const apiSrc = avatarImageSrc(playerId, link);
   const src = apiSrc && !failed ? apiSrc : DEFAULT_AVATAR;
+  const profileUrl = link && linkToProfile ? link : null;
 
   const imageClassName = `block rounded-full object-cover bg-[var(--draft-surface-4)] ${className}`;
 
@@ -36,28 +50,42 @@ export function PlayerAvatar({ playerId, link, name, size = 40, className = "" }
       alt={`${name} profile`}
       width={size}
       height={size}
+      loading="lazy"
+      decoding="async"
       className={imageClassName}
       onError={() => setFailed(true)}
     />
   );
 
-  const frameClassName =
-    "inline-flex shrink-0 rounded-full ring-1 ring-[var(--draft-divider)] transition-[box-shadow]";
+  const frameClassName = [
+    "inline-flex shrink-0 rounded-full ring-1 ring-[var(--draft-divider)] transition-[box-shadow]",
+    profileUrl ? "cursor-pointer hover:ring-2 hover:ring-[var(--draft-accent)]/55" : "",
+  ].join(" ");
 
-  if (!link) {
-    return <span className={frameClassName}>{image}</span>;
+  function openProfile() {
+    if (!profileUrl) return;
+    window.open(profileUrl, "_blank", "noopener,noreferrer");
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLSpanElement>) {
+    if (!profileUrl) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openProfile();
+    }
   }
 
   return (
-    <a
-      href={link}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`${frameClassName} hover:ring-2 hover:ring-[var(--draft-accent)]/55`}
-      aria-label={`Open ${name}'s profile`}
+    <span
+      className={frameClassName}
+      role={profileUrl ? "link" : undefined}
+      tabIndex={profileUrl ? 0 : undefined}
+      aria-label={profileUrl ? `Open ${name}'s profile` : undefined}
+      onClick={profileUrl ? openProfile : undefined}
+      onKeyDown={profileUrl ? onKeyDown : undefined}
     >
       {image}
-    </a>
+    </span>
   );
 }
 

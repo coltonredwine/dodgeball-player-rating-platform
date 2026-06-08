@@ -20,7 +20,13 @@ import {
 import { groupPoolPlayersIntoSections } from "@/lib/draft/pool-sections";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
 import type { QuotaLimits } from "@/lib/draft/quotas";
+import type { PublicBoardVisibility } from "@/lib/draft/public-board";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
+
+const DEFAULT_VISIBILITY: PublicBoardVisibility = {
+  showRanks: true,
+  showSkillRatings: true,
+};
 
 export type CaptainTvControls = {
   captainTeamId: string | null;
@@ -113,6 +119,8 @@ type DraftState = {
 type Props = {
   state: DraftState;
   captain?: CaptainTvControls;
+  visibility?: PublicBoardVisibility;
+  linkPlayerProfiles?: boolean;
 };
 
 const TV_PLAYER_AVATAR_SIZE = 36;
@@ -142,12 +150,18 @@ function PlayerPoolCard({
   quotasEnabled,
   canPick,
   suppressRankGlyph = false,
+  showRanks = true,
+  showSkillRatings = true,
+  linkPlayerProfiles = true,
 }: {
   player: UndraftedPlayer;
   captain?: CaptainTvControls;
   quotasEnabled: boolean;
   canPick: boolean;
   suppressRankGlyph?: boolean;
+  showRanks?: boolean;
+  showSkillRatings?: boolean;
+  linkPlayerProfiles?: boolean;
 }) {
   const scores = player.scores;
   const fullName = `${player.firstName} ${player.lastName}`;
@@ -156,7 +170,8 @@ function PlayerPoolCard({
   const isPending = captain?.pendingPickId === player.playerId;
   const isSaved = captain?.flaggedPlayerIds.includes(player.playerId) ?? false;
   const savedHighlight = isSaved && !inactive;
-  const showRank = !suppressRankGlyph && (captain ? captain.showRanksOnCaptainView : true);
+  const showRank =
+    showRanks && !suppressRankGlyph && (captain ? captain.showRanksOnCaptainView : true);
   const showChoose = captain != null && eligible;
 
   const showPickActions = captain != null && showChoose;
@@ -176,7 +191,13 @@ function PlayerPoolCard({
           onClick={() => captain.onToggleFlag(player.playerId)}
         />
       ) : null}
-      <PlayerAvatar playerId={player.playerId} link={player.link} name={fullName} size={TV_PLAYER_AVATAR_SIZE} />
+      <PlayerAvatar
+        playerId={player.playerId}
+        link={player.link}
+        name={fullName}
+        size={TV_PLAYER_AVATAR_SIZE}
+        linkToProfile={linkPlayerProfiles}
+      />
       <div
         className={[
           "flex min-w-0 flex-1 flex-col",
@@ -196,20 +217,22 @@ function PlayerPoolCard({
                 className="draft-tv-rank-glyph shrink-0"
               />
             ) : null}
-            <div className="flex min-w-0 flex-1 items-center justify-start gap-x-2">
-              <PlayerStatScore
-                glyph={<OffenseStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
-                value={scores.displayOffensive}
-              />
-              <PlayerStatScore
-                glyph={<DefenseStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
-                value={scores.displayDefensive}
-              />
-              <PlayerStatScore
-                glyph={<PsychStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
-                value={scores.displayPsych}
-              />
-            </div>
+            {showSkillRatings ? (
+              <div className="flex min-w-0 flex-1 items-center justify-start gap-x-2">
+                <PlayerStatScore
+                  glyph={<OffenseStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
+                  value={scores.displayOffensive}
+                />
+                <PlayerStatScore
+                  glyph={<DefenseStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
+                  value={scores.displayDefensive}
+                />
+                <PlayerStatScore
+                  glyph={<PsychStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
+                  value={scores.displayPsych}
+                />
+              </div>
+            ) : null}
             {!showPickActions ? (
               <LeaningIcon
                 leaning={scores.leaning}
@@ -249,16 +272,24 @@ function PlayerPoolCard({
 function GhostRosterSlot({
   player,
   showRank,
+  linkPlayerProfiles = true,
 }: {
   player: UndraftedPlayer;
   showRank: boolean;
+  linkPlayerProfiles?: boolean;
 }) {
   const scores = player.scores;
   const fullName = `${player.firstName} ${player.lastName}`;
 
   return (
     <div className="draft-tv-roster-slot draft-roster-ghost flex items-center gap-2 px-2 py-2">
-      <PlayerAvatar playerId={player.playerId} link={player.link} name={fullName} size={TV_PLAYER_AVATAR_SIZE} />
+      <PlayerAvatar
+        playerId={player.playerId}
+        link={player.link}
+        name={fullName}
+        size={TV_PLAYER_AVATAR_SIZE}
+        linkToProfile={linkPlayerProfiles}
+      />
       <div
         className="flex min-w-0 flex-1 flex-col"
         style={{ minHeight: TV_PLAYER_AVATAR_SIZE }}
@@ -292,9 +323,11 @@ function GhostRosterSlot({
 function RosterSlot({
   player,
   showRank,
+  linkPlayerProfiles = true,
 }: {
   player?: TeamState["roster"][number];
   showRank: boolean;
+  linkPlayerProfiles?: boolean;
 }) {
   if (!player) {
     return (
@@ -311,7 +344,13 @@ function RosterSlot({
 
   return (
     <div className="draft-tv-roster-slot flex items-center gap-2 px-2 py-2">
-      <PlayerAvatar playerId={player.playerId} link={player.link} name={fullName} size={TV_PLAYER_AVATAR_SIZE} />
+      <PlayerAvatar
+        playerId={player.playerId}
+        link={player.link}
+        name={fullName}
+        size={TV_PLAYER_AVATAR_SIZE}
+        linkToProfile={linkPlayerProfiles}
+      />
       <div
         className="flex min-w-0 flex-1 flex-col"
         style={{ minHeight: TV_PLAYER_AVATAR_SIZE }}
@@ -349,6 +388,8 @@ function TeamCard({
   minQuotasEnabled,
   maxQuotasEnabled,
   hideRanks,
+  showSkillRatings = true,
+  linkPlayerProfiles = true,
   ghostPlayers = [],
 }: {
   team: TeamState;
@@ -358,6 +399,8 @@ function TeamCard({
   minQuotasEnabled: boolean;
   maxQuotasEnabled: boolean;
   hideRanks: boolean;
+  showSkillRatings?: boolean;
+  linkPlayerProfiles?: boolean;
   ghostPlayers?: UndraftedPlayer[];
 }) {
   const emptySlots = Math.max(0, team.targetRosterSize - team.roster.length);
@@ -409,7 +452,12 @@ function TeamCard({
           Roster ({team.roster.length}/{team.targetRosterSize})
         </p>
         {team.roster.map((player) => (
-          <RosterSlot key={player.playerId} player={player} showRank={!hideRanks} />
+          <RosterSlot
+            key={player.playerId}
+            player={player}
+            showRank={!hideRanks}
+            linkPlayerProfiles={linkPlayerProfiles}
+          />
         ))}
         {isCaptainTeam
           ? ghostPlayers.map((player) => (
@@ -417,41 +465,58 @@ function TeamCard({
                 key={`ghost-${player.playerId}`}
                 player={player}
                 showRank={!hideRanks}
+                linkPlayerProfiles={linkPlayerProfiles}
               />
             ))
           : null}
         {Array.from({ length: emptySlots }, (_, index) => (
-          <RosterSlot key={`empty-${index}`} showRank={!hideRanks} />
+          <RosterSlot key={`empty-${index}`} showRank={!hideRanks} linkPlayerProfiles={linkPlayerProfiles} />
         ))}
       </div>
 
       <footer className="draft-tv-team-card__footer border-t border-[var(--draft-divider)] px-3 py-2.5 text-center text-sm text-[var(--draft-text-medium)]">
-        <p className="text-base font-medium tabular-nums text-[var(--draft-text-high)]">
-          Roster average: {team.stats.avgRank != null ? team.stats.avgRank.toFixed(2) : "—"}
-        </p>
-        <div className="mt-1.5 flex items-center justify-center gap-3 text-sm tabular-nums">
-          <span className="inline-flex items-center gap-1">
-            {team.stats.offensiveCount}
-            <LeaningIcon leaning="offensive" size={TV_LEANING_ICON_SIZE_SM} monochrome />
-            {team.stats.avgOffensive != null ? team.stats.avgOffensive.toFixed(2) : "—"}
-          </span>
-          <span className="text-[var(--draft-text-disabled)]">|</span>
-          <span className="inline-flex items-center gap-1">
-            {team.stats.defensiveCount}
-            <LeaningIcon leaning="defensive" size={TV_LEANING_ICON_SIZE_SM} monochrome />
-            {team.stats.avgDefensive != null ? team.stats.avgDefensive.toFixed(2) : "—"}
-          </span>
-        </div>
+        {!hideRanks ? (
+          <p className="text-base font-medium tabular-nums text-[var(--draft-text-high)]">
+            Roster average: {team.stats.avgRank != null ? team.stats.avgRank.toFixed(2) : "—"}
+          </p>
+        ) : null}
+        {showSkillRatings ? (
+          <div
+            className={[
+              "flex items-center justify-center gap-3 text-sm tabular-nums",
+              hideRanks ? "" : "mt-1.5",
+            ].join(" ")}
+          >
+            <span className="inline-flex items-center gap-1">
+              {team.stats.offensiveCount}
+              <LeaningIcon leaning="offensive" size={TV_LEANING_ICON_SIZE_SM} monochrome />
+              {team.stats.avgOffensive != null ? team.stats.avgOffensive.toFixed(2) : "—"}
+            </span>
+            <span className="text-[var(--draft-text-disabled)]">|</span>
+            <span className="inline-flex items-center gap-1">
+              {team.stats.defensiveCount}
+              <LeaningIcon leaning="defensive" size={TV_LEANING_ICON_SIZE_SM} monochrome />
+              {team.stats.avgDefensive != null ? team.stats.avgDefensive.toFixed(2) : "—"}
+            </span>
+          </div>
+        ) : null}
       </footer>
     </article>
   );
 }
 
-export function DraftBoardTvView({ state, captain }: Props) {
+export function DraftBoardTvView({
+  state,
+  captain,
+  visibility = DEFAULT_VISIBILITY,
+  linkPlayerProfiles = true,
+}: Props) {
   const [search, setSearch] = useState("");
   const isCaptainView = captain != null;
+  const showRanks = visibility.showRanks;
+  const showSkillRatings = visibility.showSkillRatings;
   const onClockTeam = state.teams.find((team) => team.id === state.onClockTeamId);
-  const showQuotas = areQuotasEnabled(state.draft);
+  const showQuotas = areQuotasEnabled(state.draft) && showRanks;
   const canPick = Boolean(captain?.isCaptainTurn && state.draft.isLive);
   const poolPlayers = useMemo(() => {
     let players = state.undrafted;
@@ -466,10 +531,12 @@ export function DraftBoardTvView({ state, captain }: Props) {
 
   const poolSections = useMemo(
     () =>
-      groupPoolPlayersIntoSections(poolPlayers, {
-        bookmarkIds: isCaptainView && captain ? captain.flaggedPlayerIds : undefined,
-      }),
-    [captain, isCaptainView, poolPlayers],
+      showRanks
+        ? groupPoolPlayersIntoSections(poolPlayers, {
+            bookmarkIds: isCaptainView && captain ? captain.flaggedPlayerIds : undefined,
+          })
+        : null,
+    [captain, isCaptainView, poolPlayers, showRanks],
   );
 
   const captainGhostPlayers = useMemo(() => {
@@ -590,7 +657,8 @@ export function DraftBoardTvView({ state, captain }: Props) {
           <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-1">
             {state.teams.map((team) => {
               const hideRanks =
-                state.draft.displaySettings.hideRanksOnCompleteTeams && team.remainingPicks <= 0;
+                !showRanks ||
+                (state.draft.displaySettings.hideRanksOnCompleteTeams && team.remainingPicks <= 0);
               return (
                 <TeamCard
                   key={team.id}
@@ -601,6 +669,8 @@ export function DraftBoardTvView({ state, captain }: Props) {
                   minQuotasEnabled={state.draft.minQuotasEnabled}
                   maxQuotasEnabled={state.draft.maxQuotasEnabled}
                   hideRanks={hideRanks}
+                  showSkillRatings={showSkillRatings}
+                  linkPlayerProfiles={linkPlayerProfiles}
                   ghostPlayers={
                     captain != null && team.id === captain.captainTeamId
                       ? captainGhostPlayers
@@ -618,29 +688,31 @@ export function DraftBoardTvView({ state, captain }: Props) {
               Players ({state.undraftedTotal})
             </p>
             <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5">
-              {RANKS_DESC.map((rank) => {
-                const count = state.undraftedRankCounts[rank] ?? 0;
-                const inactive = count === 0;
-                return (
-                  <span
-                    key={rank}
-                    className={[
-                      "inline-flex items-center gap-1.5 tabular-nums text-base font-semibold",
-                      inactive
-                        ? "quota-column-inactive text-[var(--draft-text-disabled)]"
-                        : "text-[var(--draft-text-high)]",
-                    ].join(" ")}
-                  >
-                    <RankGlyph
-                      rank={rank}
-                      size={22}
-                      surface="dark"
-                      className={inactive ? "quota-rank-glyph-inactive" : "draft-tv-rank-glyph"}
-                    />
-                    {count}
-                  </span>
-                );
-              })}
+              {showRanks
+                ? RANKS_DESC.map((rank) => {
+                    const count = state.undraftedRankCounts[rank] ?? 0;
+                    const inactive = count === 0;
+                    return (
+                      <span
+                        key={rank}
+                        className={[
+                          "inline-flex items-center gap-1.5 tabular-nums text-base font-semibold",
+                          inactive
+                            ? "quota-column-inactive text-[var(--draft-text-disabled)]"
+                            : "text-[var(--draft-text-high)]",
+                        ].join(" ")}
+                      >
+                        <RankGlyph
+                          rank={rank}
+                          size={22}
+                          surface="dark"
+                          className={inactive ? "quota-rank-glyph-inactive" : "draft-tv-rank-glyph"}
+                        />
+                        {count}
+                      </span>
+                    );
+                  })
+                : null}
             </div>
             {canPick ? (
               <p className="mt-2 rounded-lg bg-green-950/80 px-3 py-2 text-center text-xs font-medium text-green-300 ring-1 ring-green-800/80">
@@ -662,7 +734,7 @@ export function DraftBoardTvView({ state, captain }: Props) {
               <p className="p-4 text-sm text-[var(--draft-text-disabled)]">
                 {isCaptainView && search ? "No matching players." : "No players available."}
               </p>
-            ) : (
+            ) : showRanks && poolSections ? (
               <PlayerPoolRankSections
                 sections={poolSections}
                 renderPlayer={(player, section) => (
@@ -673,9 +745,25 @@ export function DraftBoardTvView({ state, captain }: Props) {
                     quotasEnabled={showQuotas}
                     canPick={canPick}
                     suppressRankGlyph={section.kind === "rank"}
+                    showRanks={showRanks}
+                    showSkillRatings={showSkillRatings}
+                    linkPlayerProfiles={linkPlayerProfiles}
                   />
                 )}
               />
+            ) : (
+              poolPlayers.map((player) => (
+                <PlayerPoolCard
+                  key={player.playerId}
+                  player={player}
+                  captain={captain}
+                  quotasEnabled={showQuotas}
+                  canPick={canPick}
+                  showRanks={showRanks}
+                  showSkillRatings={showSkillRatings}
+                  linkPlayerProfiles={linkPlayerProfiles}
+                />
+              ))
             )}
           </div>
           {captain?.pickError ? (

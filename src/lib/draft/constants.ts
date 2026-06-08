@@ -28,15 +28,23 @@ export type DraftDisplaySettings = {
   hideRanksOnCompleteTeams: boolean;
   primarySort: PlayerSortField;
   secondarySort: PlayerSortField;
+  publicBoardEnabled: boolean;
+  publicShowRanks: boolean;
+  publicShowSkillRatings: boolean;
+};
+
+const DEFAULT_DISPLAY_SETTINGS: DraftDisplaySettings = {
+  showRanksOnCaptainView: true,
+  hideRanksOnCompleteTeams: false,
+  publicBoardEnabled: false,
+  publicShowRanks: true,
+  publicShowSkillRatings: true,
+  ...DEFAULT_SORT_SETTINGS,
 };
 
 export function parseDisplaySettings(raw: string | null | undefined): DraftDisplaySettings {
   if (!raw) {
-    return {
-      showRanksOnCaptainView: true,
-      hideRanksOnCompleteTeams: false,
-      ...DEFAULT_SORT_SETTINGS,
-    };
+    return { ...DEFAULT_DISPLAY_SETTINGS };
   }
   try {
     const parsed = JSON.parse(raw) as Partial<DraftDisplaySettings>;
@@ -45,13 +53,12 @@ export function parseDisplaySettings(raw: string | null | undefined): DraftDispl
       hideRanksOnCompleteTeams: parsed.hideRanksOnCompleteTeams ?? false,
       primarySort: parsed.primarySort ?? DEFAULT_SORT_SETTINGS.primarySort,
       secondarySort: parsed.secondarySort ?? DEFAULT_SORT_SETTINGS.secondarySort,
+      publicBoardEnabled: parsed.publicBoardEnabled ?? false,
+      publicShowRanks: parsed.publicShowRanks ?? true,
+      publicShowSkillRatings: parsed.publicShowSkillRatings ?? true,
     };
   } catch {
-    return {
-      showRanksOnCaptainView: true,
-      hideRanksOnCompleteTeams: false,
-      ...DEFAULT_SORT_SETTINGS,
-    };
+    return { ...DEFAULT_DISPLAY_SETTINGS };
   }
 }
 

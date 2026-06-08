@@ -46,6 +46,9 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
   const [maxQuotasEnabled, setMaxQuotasEnabled] = useState(true);
   const [showRanksOnCaptainView, setShowRanksOnCaptainView] = useState(true);
   const [hideRanksOnCompleteTeams, setHideRanksOnCompleteTeams] = useState(false);
+  const [publicBoardEnabled, setPublicBoardEnabled] = useState(false);
+  const [publicShowRanks, setPublicShowRanks] = useState(true);
+  const [publicShowSkillRatings, setPublicShowSkillRatings] = useState(true);
   const [primarySort, setPrimarySort] = useState<PlayerSortField>(DEFAULT_SORT_SETTINGS.primarySort);
   const [secondarySort, setSecondarySort] = useState<PlayerSortField>(
     DEFAULT_SORT_SETTINGS.secondarySort,
@@ -67,6 +70,9 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
       setMaxQuotasEnabled(data.draft.maxQuotasEnabled);
       setShowRanksOnCaptainView(data.draft.displaySettings.showRanksOnCaptainView);
       setHideRanksOnCompleteTeams(data.draft.displaySettings.hideRanksOnCompleteTeams);
+      setPublicBoardEnabled(data.draft.displaySettings.publicBoardEnabled ?? false);
+      setPublicShowRanks(data.draft.displaySettings.publicShowRanks ?? true);
+      setPublicShowSkillRatings(data.draft.displaySettings.publicShowSkillRatings ?? true);
       setPrimarySort(data.draft.displaySettings.primarySort);
       setSecondarySort(data.draft.displaySettings.secondarySort);
     }
@@ -111,6 +117,9 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
           hideRanksOnCompleteTeams,
           primarySort,
           secondarySort,
+          publicBoardEnabled,
+          publicShowRanks,
+          publicShowSkillRatings,
         },
       }),
     });
@@ -229,6 +238,41 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
               onChange={(e) => setHideRanksOnCompleteTeams(e.target.checked)}
             />
             Hide player rank on full team cards
+          </label>
+        </section>
+
+        <section className="rounded border border-zinc-200 p-4">
+          <h2 className="font-medium">Public draft board</h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Share a read-only TV board at{" "}
+            <code className="rounded bg-zinc-100 px-1">/draft/{draftId}/public</code> without requiring
+            login.
+          </p>
+          <label className="mt-4 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={publicBoardEnabled}
+              onChange={(e) => setPublicBoardEnabled(e.target.checked)}
+            />
+            Enable public draft board
+          </label>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={publicShowRanks}
+              disabled={!publicBoardEnabled}
+              onChange={(e) => setPublicShowRanks(e.target.checked)}
+            />
+            Show ranks and rank quotas
+          </label>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={publicShowSkillRatings}
+              disabled={!publicBoardEnabled}
+              onChange={(e) => setPublicShowSkillRatings(e.target.checked)}
+            />
+            Show OFF / DEF / PSY skill ratings
           </label>
         </section>
 

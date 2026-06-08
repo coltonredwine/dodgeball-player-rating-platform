@@ -14,6 +14,7 @@ export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: P
   const [isLive, setIsLive] = useState(false);
   const [status, setStatus] = useState("setup");
   const [boardStatus, setBoardStatus] = useState<DraftBoardStatus | null>(null);
+  const [publicBoardEnabled, setPublicBoardEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [refreshSignal, setRefreshSignal] = useState(0);
@@ -30,6 +31,7 @@ export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: P
     const data = await res.json();
     setIsLive(data.draft.isLive);
     setStatus(data.draft.status);
+    setPublicBoardEnabled(data.draft.displaySettings?.publicBoardEnabled ?? false);
   }, [draftId]);
 
   useEffect(() => {
@@ -139,6 +141,15 @@ export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: P
             >
               Open TV board
             </Link>
+            {publicBoardEnabled ? (
+              <Link
+                href={`/draft/${draftId}/public`}
+                className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100"
+                target="_blank"
+              >
+                Open public board
+              </Link>
+            ) : null}
             {!readOnly ? (
               <Link
                 href={`/draft/${draftId}/pick`}

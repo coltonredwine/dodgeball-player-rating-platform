@@ -31,7 +31,7 @@ async function defaultAvatarResponse() {
   });
 }
 
-function cachedAvatarResponse(bytes: Uint8Array, contentType: string | null | undefined) {
+function cachedAvatarResponse(bytes: Buffer, contentType: string | null | undefined) {
   return new NextResponse(bytes as BodyInit, {
     headers: {
       "Content-Type": contentType ?? "image/jpeg",
@@ -72,7 +72,7 @@ async function resolveRemoteAvatarBytes(link: string) {
 type AvatarPlayer = {
   id: string;
   link: string | null;
-  avatarImage: Uint8Array | null;
+  avatarImage: Buffer | Uint8Array | null;
   avatarImageContentType: string | null;
 };
 
@@ -107,9 +107,18 @@ async function findPlayerByLink(link: string): Promise<AvatarPlayer | null> {
   return candidates.find((player) => player.link && profileLinksMatch(player.link, trimmed)) ?? null;
 }
 
-function avatarBytes(player: AvatarPlayer): Uint8Array | null {
-  if (!player.avatarImage || player.avatarImage.length === 0) return null;
-  return new Uint8Array(player.avatarImage);
+function avatarBytes(player: AvatarPlayer): Buffer | null {
+  if (player.avatarImage == null) return null;
+
+  if (Buffer.isBuffer(player.avatarImage)) {
+    return player.avatarImage.length > 0 ? player.avatarImage : null;
+  }
+
+  if (player.avatarImage instanceof Uint8Array) {
+    return player.avatarImage.length > 0 ? Buffer.from(player.avatarImage) : null;
+  }
+
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -128,14 +137,14 @@ export async function GET(request: Request) {
         ? await findPlayerByLink(link)
         : null;
 
-    const resolvedLink = link?.trim() ?? player?.link ?? null;
-    if (!resolvedLink || !isInstagramProfileUrl(resolvedLink)) {
-      return defaultAvatarResponse();
-    }
-
     const cached = player ? avatarBytes(player) : null;
     if (cached) {
       return cachedAvatarResponse(cached, player?.avatarImageContentType);
+    }
+
+    const resolvedLink = link?.trim() ?? player?.link ?? null;
+    if (!resolvedLink || !isInstagramProfileUrl(resolvedLink)) {
+      return defaultAvatarResponse();
     }
 
     const remote = await resolveRemoteAvatarBytes(resolvedLink);
@@ -147,7 +156,7 @@ export async function GET(request: Request) {
       await persistPlayerAvatar(player.id, remote.bytes, remote.contentType);
     }
 
-    return cachedAvatarResponse(remote.bytes, remote.contentType);
+    return cachedAvatarResponse(Buffer.from(remote.bytes), remote.contentType);
   } catch {
     return defaultAvatarResponse();
   }

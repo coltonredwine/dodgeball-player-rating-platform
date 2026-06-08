@@ -14,7 +14,8 @@
     "postinstall": "prisma generate",
     "setup:init": "node scripts/setup.mjs",
     "render:start": "node scripts/render-migrate.mjs && npm run setup:init && npm run start",
-    "warm:avatars": "node scripts/warm-player-avatars.mjs"
+    "warm:avatars": "node scripts/warm-player-avatars.mjs",
+    "check:avatars": "node scripts/check-avatar-cache.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

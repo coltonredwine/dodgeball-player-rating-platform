@@ -16,6 +16,7 @@ import { areQuotasEnabled } from "@/lib/draft/quotas";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
 import { formatCalcRankDisplay, type RankThresholds } from "@/lib/rankings/thresholds";
 import { DraftBoardTvView } from "@/components/draft-board-tv-view";
+import { publicBoardVisibility } from "@/lib/draft/public-board";
 import { DRAFT_ROOM_CLASS, DRAFT_ROOM_DARK, DRAFT_ROOM_LIGHT } from "@/lib/draft-room-theme";
 
 export type DraftBoardStatus = {
@@ -80,7 +81,12 @@ type DraftStatePayload = {
     maxQuotasEnabled: boolean;
     status: string;
     rankThresholds: RankThresholds;
-    displaySettings: { hideRanksOnCompleteTeams: boolean };
+    displaySettings: {
+      hideRanksOnCompleteTeams: boolean;
+      publicBoardEnabled: boolean;
+      publicShowRanks: boolean;
+      publicShowSkillRatings: boolean;
+    };
   };
   currentPickNumber: number;
   totalPicks: number;
@@ -105,7 +111,7 @@ type DraftStatePayload = {
 
 type Props = {
   draftId: string;
-  mode: "board" | "admin" | "captain";
+  mode: "board" | "admin" | "captain" | "public";
   captainTeamId?: string | null;
   adminReadOnly?: boolean;
   refreshSignal?: number;
@@ -241,7 +247,11 @@ export function DraftBoardView({
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/draft/${draftId}/state`);
+      const endpoint =
+        mode === "public"
+          ? `/api/draft/${draftId}/public-state`
+          : `/api/draft/${draftId}/state`;
+      const res = await fetch(endpoint);
       if (!res.ok) throw new Error("Failed to load draft");
       const data = (await res.json()) as DraftStatePayload;
       setState(data);
@@ -251,9 +261,13 @@ export function DraftBoardView({
         return data.undrafted.some((player) => player.playerId === current) ? current : null;
       });
     } catch {
-      setError("Could not load draft state");
+      setError(
+        mode === "public"
+          ? "Public draft board is not available."
+          : "Could not load draft state",
+      );
     }
-  }, [draftId]);
+  }, [draftId, mode]);
 
   useEffect(() => {
     void refresh();
@@ -361,11 +375,33 @@ export function DraftBoardView({
     }
   }
 
-  if (error) return <p className="text-red-600">{error}</p>;
-  if (!state) return <p className="text-zinc-500">Loading draft…</p>;
+  if (error) {
+    return (
+      <p className={mode === "public" || mode === "board" ? "p-6 text-red-400" : "text-red-600"}>
+        {error}
+      </p>
+    );
+  }
+  if (!state) {
+    return (
+      <p className={mode === "public" || mode === "board" ? "p-6 text-[var(--draft-text-medium)]" : "text-zinc-500"}>
+        Loading draft…
+      </p>
+    );
+  }
 
   if (mode === "board") {
     return <DraftBoardTvView state={state} />;
+  }
+
+  if (mode === "public") {
+    return (
+      <DraftBoardTvView
+        state={state}
+        visibility={publicBoardVisibility(state.draft.displaySettings)}
+        linkPlayerProfiles={false}
+      />
+    );
   }
 
   const draftState = state;

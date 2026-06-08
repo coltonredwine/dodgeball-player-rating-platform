@@ -25,6 +25,9 @@ const settingsSchema = z.object({
       hideRanksOnCompleteTeams: z.boolean(),
       primarySort: z.enum(["rank", "calculation", "firstName", "lastName"]),
       secondarySort: z.enum(["rank", "calculation", "firstName", "lastName"]),
+      publicBoardEnabled: z.boolean(),
+      publicShowRanks: z.boolean(),
+      publicShowSkillRatings: z.boolean(),
     })
     .optional(),
   teams: z
