@@ -17,7 +17,8 @@ const settingsSchema = z.object({
       "5": z.number(),
     })
     .optional(),
-  quotasEnabled: z.boolean().optional(),
+  minQuotasEnabled: z.boolean().optional(),
+  maxQuotasEnabled: z.boolean().optional(),
   displaySettings: z
     .object({
       showRanksOnCaptainView: z.boolean(),
@@ -55,7 +56,8 @@ export async function PATCH(request: Request, { params }: Params) {
       rankThresholds: data.rankThresholds
         ? serializeRankThresholds(data.rankThresholds)
         : undefined,
-      quotasEnabled: data.quotasEnabled,
+      minQuotasEnabled: data.minQuotasEnabled,
+      maxQuotasEnabled: data.maxQuotasEnabled,
       displaySettings: data.displaySettings
         ? serializeDisplaySettings(data.displaySettings)
         : undefined,

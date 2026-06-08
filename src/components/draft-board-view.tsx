@@ -12,6 +12,7 @@ import { ScrollableListCard } from "@/components/scrollable-list-card";
 import { TeamQuotaTable } from "@/components/team-quota-table";
 import { filterPlayersByQuery } from "@/lib/player-search";
 import type { QuotaLimits } from "@/lib/draft/quotas";
+import { areQuotasEnabled } from "@/lib/draft/quotas";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
 import { formatCalcRankDisplay, type RankThresholds } from "@/lib/rankings/thresholds";
 import { DRAFT_ROOM_CLASS, DRAFT_ROOM_DARK, DRAFT_ROOM_LIGHT } from "@/lib/draft-room-theme";
@@ -73,7 +74,8 @@ type DraftStatePayload = {
     name: string;
     isLive: boolean;
     onClockStartedAt: string | null;
-    quotasEnabled: boolean;
+    minQuotasEnabled: boolean;
+    maxQuotasEnabled: boolean;
     status: string;
     rankThresholds: RankThresholds;
     displaySettings: { hideRanksOnCompleteTeams: boolean };
@@ -306,7 +308,7 @@ export function DraftBoardView({
   })();
 
   function isQuotaForbiddenForOnClock(playerId: string): boolean {
-    if (!state?.draft.quotasEnabled || !state.onClockTeamId) return false;
+    if (!state || !areQuotasEnabled(state.draft) || !state.onClockTeamId) return false;
     return !(state.adminPickEligibility?.[playerId] ?? true);
   }
 
@@ -467,7 +469,7 @@ export function DraftBoardView({
         };
 
   function isPlayerEligible(player: UndraftedPlayer): boolean {
-    if (!draftState.draft.quotasEnabled) return true;
+    if (!areQuotasEnabled(draftState.draft)) return true;
     if (mode === "captain" && captainTeamId) {
       return draftState.eligibility?.[player.playerId] ?? false;
     }
@@ -478,12 +480,12 @@ export function DraftBoardView({
   }
 
   function isAdminQuotaForbidden(player: UndraftedPlayer): boolean {
-    return mode === "admin" && draftState.draft.quotasEnabled && !isPlayerEligible(player);
+    return mode === "admin" && areQuotasEnabled(draftState.draft) && !isPlayerEligible(player);
   }
 
   function undraftedRowClass(player: UndraftedPlayer) {
     const eligible = isPlayerEligible(player);
-    const inactive = draftState.draft.quotasEnabled && !eligible && mode !== "admin";
+    const inactive = areQuotasEnabled(draftState.draft) && !eligible && mode !== "admin";
     const quotaForbidden = isAdminQuotaForbidden(player);
     const isSelected = mode === "admin" && selectedPlayerId === player.playerId;
     return [
@@ -776,11 +778,13 @@ export function DraftBoardView({
             >
               {team.roster.length}/{team.targetRosterSize} players
             </p>
-            {state.draft.quotasEnabled ? (
+            {areQuotasEnabled(state.draft) ? (
               <div className={`mt-2 ${display.cardMeta}`}>
                 <TeamQuotaTable
                   quotaNeed={team.quotaNeed}
                   quotaCap={team.quotaCap}
+                  showNeed={state.draft.minQuotasEnabled}
+                  showCap={state.draft.maxQuotasEnabled}
                   rankGlyphSize={isCaptainTeam && mode === "captain" ? display.rankGlyphSm + 2 : display.rankGlyphSm}
                   rankGlyphSurface={theme.rankGlyphSurface}
                   labelClassName={theme.cardMeta}

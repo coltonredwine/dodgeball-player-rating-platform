@@ -5,6 +5,7 @@ import { TeamQuotaTable } from "@/components/team-quota-table";
 import { LeaningIcon } from "@/components/player-leaning-icon";
 import { PickClock } from "@/components/pick-clock";
 import { RankGlyph } from "@/components/rank-glyph";
+import { areQuotasEnabled } from "@/lib/draft/quotas";
 import { DRAFT_ROOM_DARK } from "@/lib/draft-room-theme";
 
 type TeamState = {
@@ -36,7 +37,12 @@ type PickHistoryEntry = {
 type TurnQueueSlot = { pickNumber: number; teamId: string; round: number };
 
 export type MobileCaptainState = {
-  draft: { isLive: boolean; quotasEnabled: boolean; onClockStartedAt: string | null };
+  draft: {
+    isLive: boolean;
+    minQuotasEnabled: boolean;
+    maxQuotasEnabled: boolean;
+    onClockStartedAt: string | null;
+  };
   onClockTeamId: string | null;
   captainTeamId: string | null;
   isCaptainTurn: boolean;
@@ -197,12 +203,14 @@ function MobilePickBar({
 
 function MobileTeamPanel({
   team,
-  quotasEnabled,
+  minQuotasEnabled,
+  maxQuotasEnabled,
   showRanks,
   isOnClock,
 }: {
   team: TeamState;
-  quotasEnabled: boolean;
+  minQuotasEnabled: boolean;
+  maxQuotasEnabled: boolean;
   showRanks: boolean;
   isOnClock: boolean;
 }) {
@@ -232,11 +240,13 @@ function MobileTeamPanel({
                 {team.roster.length}/{team.targetRosterSize}
               </span>
             </p>
-            {quotasEnabled ? (
+            {areQuotasEnabled({ minQuotasEnabled, maxQuotasEnabled }) ? (
               <div className="mt-1.5">
                 <TeamQuotaTable
                   quotaNeed={team.quotaNeed}
                   quotaCap={team.quotaCap}
+                  showNeed={minQuotasEnabled}
+                  showCap={maxQuotasEnabled}
                   rankGlyphSize={16}
                   rankGlyphSurface={theme.rankGlyphSurface}
                   labelClassName={theme.cardMeta}
@@ -361,7 +371,8 @@ export function MobileCaptainLayout({
         {myTeam ? (
           <MobileTeamPanel
             team={myTeam}
-            quotasEnabled={state.draft.quotasEnabled}
+            minQuotasEnabled={state.draft.minQuotasEnabled}
+            maxQuotasEnabled={state.draft.maxQuotasEnabled}
             showRanks={showRanks}
             isOnClock={myTeam.id === state.onClockTeamId}
           />
@@ -370,7 +381,8 @@ export function MobileCaptainLayout({
           <MobileTeamPanel
             key={team.id}
             team={team}
-            quotasEnabled={state.draft.quotasEnabled}
+            minQuotasEnabled={state.draft.minQuotasEnabled}
+            maxQuotasEnabled={state.draft.maxQuotasEnabled}
             showRanks={showRanks}
             isOnClock={team.id === state.onClockTeamId}
           />

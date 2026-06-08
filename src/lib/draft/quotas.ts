@@ -3,6 +3,15 @@ export type QuotaLimits = {
   maxPerTeam: number;
 };
 
+export type QuotaMode = {
+  minQuotasEnabled: boolean;
+  maxQuotasEnabled: boolean;
+};
+
+export function areQuotasEnabled({ minQuotasEnabled, maxQuotasEnabled }: QuotaMode): boolean {
+  return minQuotasEnabled || maxQuotasEnabled;
+}
+
 export function computeRankQuotas(
   rankCounts: Record<number, number>,
   teamCount: number,
@@ -30,7 +39,9 @@ export function rankNeedForTeam(
   teamRankCount: number,
   rank: number,
   quotas: Record<number, QuotaLimits>,
+  minQuotasEnabled = true,
 ): number {
+  if (!minQuotasEnabled) return 0;
   const limit = quotas[rank];
   if (!limit) return 0;
   return Math.max(0, limit.minPerTeam - teamRankCount);
@@ -41,11 +52,13 @@ export function totalRankNeedOtherTeams(
   pickingTeamId: string,
   rank: number,
   quotas: Record<number, QuotaLimits>,
+  minQuotasEnabled = true,
 ): number {
+  if (!minQuotasEnabled) return 0;
   let total = 0;
   for (const team of teams) {
     if (team.id === pickingTeamId) continue;
-    total += rankNeedForTeam(team.rankCounts[rank] ?? 0, rank, quotas);
+    total += rankNeedForTeam(team.rankCounts[rank] ?? 0, rank, quotas, true);
   }
   return total;
 }
@@ -57,23 +70,38 @@ export function canPickRank(
   teams: Array<{ id: string; rankCounts: Record<number, number> }>,
   undraftedRankCounts: Record<number, number>,
   quotas: Record<number, QuotaLimits>,
-  quotasEnabled: boolean,
+  minQuotasEnabled: boolean,
+  maxQuotasEnabled: boolean,
 ): boolean {
-  if (!quotasEnabled) return true;
+  if (!minQuotasEnabled && !maxQuotasEnabled) return true;
   const limit = quotas[rank];
   if (!limit) return true;
-  if (teamRankCount >= limit.maxPerTeam) return false;
+  if (maxQuotasEnabled && teamRankCount >= limit.maxPerTeam) return false;
 
-  const poolAfterPick = (undraftedRankCounts[rank] ?? 0) - 1;
-  const needOtherTeams = totalRankNeedOtherTeams(teams, pickingTeamId, rank, quotas);
-  return poolAfterPick >= needOtherTeams;
+  if (minQuotasEnabled) {
+    const poolAfterPick = (undraftedRankCounts[rank] ?? 0) - 1;
+    const needOtherTeams = totalRankNeedOtherTeams(
+      teams,
+      pickingTeamId,
+      rank,
+      quotas,
+      true,
+    );
+    if (poolAfterPick < needOtherTeams) return false;
+  }
+
+  return true;
 }
 
 export function remainingQuotaSlots(
   teamRankCount: number,
   rank: number,
   quotas: Record<number, QuotaLimits>,
+  maxQuotasEnabled = true,
 ): number {
+  if (!maxQuotasEnabled) {
+    return Number.MAX_SAFE_INTEGER;
+  }
   const limit = quotas[rank];
   if (!limit) return 0;
   return Math.max(0, limit.maxPerTeam - teamRankCount);
@@ -87,11 +115,23 @@ export function quotaCapForTeam(
   teams: Array<{ id: string; rankCounts: Record<number, number> }>,
   undraftedRankCounts: Record<number, number>,
   quotas: Record<number, QuotaLimits>,
+  minQuotasEnabled: boolean,
+  maxQuotasEnabled: boolean,
 ): number {
-  const slotCap = remainingQuotaSlots(teamRankCount, rank, quotas);
-  if (slotCap === 0) return 0;
-  const needOtherTeams = totalRankNeedOtherTeams(teams, teamId, rank, quotas);
+  if (!minQuotasEnabled && !maxQuotasEnabled) return 0;
+
+  const needOtherTeams = totalRankNeedOtherTeams(
+    teams,
+    teamId,
+    rank,
+    quotas,
+    minQuotasEnabled,
+  );
   const poolCap = Math.max(0, (undraftedRankCounts[rank] ?? 0) - needOtherTeams);
+  if (!maxQuotasEnabled) return poolCap;
+
+  const slotCap = remainingQuotaSlots(teamRankCount, rank, quotas, true);
+  if (slotCap === 0) return 0;
   return Math.min(slotCap, poolCap);
 }
 

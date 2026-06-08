@@ -42,7 +42,8 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
     "4": 0.805,
     "5": 1.0,
   });
-  const [quotasEnabled, setQuotasEnabled] = useState(true);
+  const [minQuotasEnabled, setMinQuotasEnabled] = useState(true);
+  const [maxQuotasEnabled, setMaxQuotasEnabled] = useState(true);
   const [showRanksOnCaptainView, setShowRanksOnCaptainView] = useState(true);
   const [hideRanksOnCompleteTeams, setHideRanksOnCompleteTeams] = useState(false);
   const [primarySort, setPrimarySort] = useState<PlayerSortField>(DEFAULT_SORT_SETTINGS.primarySort);
@@ -62,7 +63,8 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
     if (metaRes.ok) {
       const data = await metaRes.json();
       setThresholds(data.draft.rankThresholds);
-      setQuotasEnabled(data.draft.quotasEnabled);
+      setMinQuotasEnabled(data.draft.minQuotasEnabled);
+      setMaxQuotasEnabled(data.draft.maxQuotasEnabled);
       setShowRanksOnCaptainView(data.draft.displaySettings.showRanksOnCaptainView);
       setHideRanksOnCompleteTeams(data.draft.displaySettings.hideRanksOnCompleteTeams);
       setPrimarySort(data.draft.displaySettings.primarySort);
@@ -102,7 +104,8 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         rankThresholds: thresholds,
-        quotasEnabled,
+        minQuotasEnabled,
+        maxQuotasEnabled,
         displaySettings: {
           showRanksOnCaptainView,
           hideRanksOnCompleteTeams,
@@ -198,10 +201,18 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
           <label className="mt-4 flex items-center gap-2 text-sm">
             <input
               type="checkbox"
-              checked={quotasEnabled}
-              onChange={(e) => setQuotasEnabled(e.target.checked)}
+              checked={minQuotasEnabled}
+              onChange={(e) => setMinQuotasEnabled(e.target.checked)}
             />
-            Enable rank quotas
+            Enforce minimum rank quotas
+          </label>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={maxQuotasEnabled}
+              onChange={(e) => setMaxQuotasEnabled(e.target.checked)}
+            />
+            Enforce maximum rank quotas
           </label>
           <label className="mt-2 flex items-center gap-2 text-sm">
             <input

@@ -132,7 +132,8 @@ model Draft {
   isLive           Boolean  @default(false)
   teamCount        Int
   rankThresholds   String
-  quotasEnabled    Boolean  @default(true)
+  minQuotasEnabled Boolean  @default(true)
+  maxQuotasEnabled Boolean  @default(true)
   displaySettings  String   @default("{}")
   liveAt           DateTime?
   onClockStartedAt DateTime?

@@ -76,7 +76,8 @@ export type DraftState = {
     isLive: boolean;
     onClockStartedAt: string | null;
     teamCount: number;
-    quotasEnabled: boolean;
+    minQuotasEnabled: boolean;
+    maxQuotasEnabled: boolean;
     rankThresholds: ReturnType<typeof parseDraftRankThresholds>;
     displaySettings: ReturnType<typeof parseDisplaySettings>;
   };
@@ -208,7 +209,12 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
 
     const quotaNeed: Record<number, number> = {};
     for (let rank = 1; rank <= 5; rank++) {
-      quotaNeed[rank] = rankNeedForTeam(rankCounts[rank] ?? 0, rank, quotas);
+      quotaNeed[rank] = rankNeedForTeam(
+        rankCounts[rank] ?? 0,
+        rank,
+        quotas,
+        draft.minQuotasEnabled,
+      );
     }
 
     const targetRosterSize = rosterTargets.get(team.pickOrder) ?? Math.floor(draft.players.length / draft.teamCount);
@@ -245,6 +251,8 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
         teamsBase,
         undraftedRankCounts,
         quotas,
+        draft.minQuotasEnabled,
+        draft.maxQuotasEnabled,
       );
     }
     return { ...team, quotaCap };
@@ -282,7 +290,8 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
       isLive: draft.isLive,
       onClockStartedAt: draft.onClockStartedAt?.toISOString() ?? null,
       teamCount: draft.teamCount,
-      quotasEnabled: draft.quotasEnabled,
+      minQuotasEnabled: draft.minQuotasEnabled,
+      maxQuotasEnabled: draft.maxQuotasEnabled,
       rankThresholds: thresholds,
       displaySettings,
     },
@@ -322,7 +331,8 @@ export function canTeamPickPlayer(
     state.teams,
     state.undraftedRankCounts,
     state.quotas,
-    state.draft.quotasEnabled,
+    state.draft.minQuotasEnabled,
+    state.draft.maxQuotasEnabled,
   );
 }
 

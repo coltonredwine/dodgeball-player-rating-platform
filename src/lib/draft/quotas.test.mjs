@@ -27,13 +27,13 @@ assert.equal(rank5Quotas[5].minPerTeam, 1);
 assert.equal(rank5Quotas[5].maxPerTeam, 2);
 
 assert.equal(
-  canPickRank("B", 5, 1, threeTeams, { 5: 1 }, rank5Quotas, true),
+  canPickRank("B", 5, 1, threeTeams, { 5: 1 }, rank5Quotas, true, true),
   false,
   "last rank 5 blocked when another team still needs their minimum",
 );
 
 assert.equal(
-  canPickRank("C", 5, 0, threeTeams, { 5: 1 }, rank5Quotas, true),
+  canPickRank("C", 5, 0, threeTeams, { 5: 1 }, rank5Quotas, true, true),
   true,
   "team below minimum may take the last rank 5",
 );
@@ -43,7 +43,7 @@ assert.equal(
     team("A", { 5: 1 }),
     team("B", { 5: 1 }),
     team("C", { 5: 0 }),
-  ], { 5: 2 }, rank5Quotas, true),
+  ], { 5: 2 }, rank5Quotas, true, true),
   true,
   "team may take a second rank 5 when enough remain for others' minimums",
 );
@@ -53,13 +53,13 @@ assert.equal(
     team("A", { 5: 1 }),
     team("B", { 5: 1 }),
     team("C", { 5: 0 }),
-  ], { 5: 1 }, rank5Quotas, true),
+  ], { 5: 1 }, rank5Quotas, true, true),
   false,
   "team blocked from second rank 5 when it would strand another team",
 );
 
 assert.equal(
-  canPickRank("A", 5, 2, threeTeams, { 5: 1 }, rank5Quotas, true),
+  canPickRank("A", 5, 2, threeTeams, { 5: 1 }, rank5Quotas, true, true),
   false,
   "team at max cannot pick regardless of pool",
 );
@@ -73,7 +73,7 @@ assert.equal(
     team("A", { 2: 2 }),
     team("B", { 2: 2 }),
     team("C", { 2: 0 }),
-  ], { 2: 2 }, rank2Quotas, true),
+  ], { 2: 2 }, rank2Quotas, true, true),
   false,
   "team at max cannot pick rank 2",
 );
@@ -83,7 +83,7 @@ assert.equal(
     team("A", { 2: 2 }),
     team("B", { 2: 2 }),
     team("C", { 2: 0 }),
-  ], { 2: 3 }, rank2Quotas, true),
+  ], { 2: 3 }, rank2Quotas, true, true),
   false,
   "team at max cannot pick even with spare pool",
 );
@@ -97,7 +97,7 @@ assert.equal(
     team("A", { 2: 3 }),
     team("B", { 2: 2 }),
     team("C", { 2: 0 }),
-  ], { 2: 4 }, rank2NineQuotas, true),
+  ], { 2: 4 }, rank2NineQuotas, true, true),
   false,
   "9 rank 2s: team at max cannot pick rank 2",
 );
@@ -107,7 +107,7 @@ assert.equal(
     team("A", { 2: 2 }),
     team("B", { 2: 1 }),
     team("C", { 2: 0 }),
-  ], { 2: 3 }, rank2NineQuotas, true),
+  ], { 2: 3 }, rank2NineQuotas, true, true),
   false,
   "9 rank 2s: cannot take rank 2 when remaining pool cannot satisfy other minimums",
 );
@@ -117,7 +117,7 @@ assert.equal(
     team("A", { 2: 1 }),
     team("B", { 2: 1 }),
     team("C", { 2: 0 }),
-  ], { 2: 3 }, rank2NineQuotas, true),
+  ], { 2: 3 }, rank2NineQuotas, true, true),
   false,
   "9 rank 2s: cannot hoard rank 2s when another team cannot reach minimum",
 );
@@ -127,7 +127,7 @@ assert.equal(
     team("A", { 2: 2 }),
     team("B", { 2: 1 }),
     team("C", { 2: 0 }),
-  ], { 2: 6 }, rank2NineQuotas, true),
+  ], { 2: 6 }, rank2NineQuotas, true, true),
   true,
   "9 rank 2s: team may reach minimum when enough rank 2s remain for others",
 );
@@ -137,7 +137,7 @@ assert.equal(
     team("A", { 2: 2 }),
     team("B", { 2: 1 }),
     team("C", { 2: 0 }),
-  ], { 2: 3 }, rank2Quotas, true),
+  ], { 2: 3 }, rank2Quotas, true, true),
   true,
   "team may reach max when others can still meet minimums",
 );
@@ -147,7 +147,7 @@ assert.equal(
     team("A", { 2: 2 }),
     team("B", { 2: 2 }),
     team("C", { 2: 0 }),
-  ], { 2: 2 }, rank2Quotas, true),
+  ], { 2: 2 }, rank2Quotas, true, true),
   false,
   "captain at max blocked from rank needed by team still under minimum",
 );
@@ -160,16 +160,16 @@ assert.equal(
   "teams already at or above minimum do not add need",
 );
 
-assert.equal(canPickRank("A", 5, 0, threeTeams, { 5: 5 }, rank5Quotas, false), true);
+assert.equal(canPickRank("A", 5, 0, threeTeams, { 5: 5 }, rank5Quotas, false, false), true);
 
 assert.equal(
-  quotaCapForTeam("B", 5, 1, threeTeams, { 5: 1 }, rank5Quotas),
+  quotaCapForTeam("B", 5, 1, threeTeams, { 5: 1 }, rank5Quotas, true, true),
   0,
   "cap zero when last rank 5 is reserved for another team's minimum",
 );
 
 assert.equal(
-  quotaCapForTeam("C", 5, 0, threeTeams, { 5: 1 }, rank5Quotas),
+  quotaCapForTeam("C", 5, 0, threeTeams, { 5: 1 }, rank5Quotas, true, true),
   1,
   "team below minimum may cap at the one remaining rank 5",
 );
@@ -179,7 +179,7 @@ assert.equal(
     team("A", { 5: 1 }),
     team("B", { 5: 1 }),
     team("C", { 5: 0 }),
-  ], { 5: 1 }, rank5Quotas),
+  ], { 5: 1 }, rank5Quotas, true, true),
   0,
   "cap zero for second rank 5 when it would strand another team",
 );
@@ -189,9 +189,21 @@ assert.equal(
     team("A", { 5: 1 }),
     team("B", { 5: 1 }),
     team("C", { 5: 0 }),
-  ], { 5: 2 }, rank5Quotas),
+  ], { 5: 2 }, rank5Quotas, true, true),
   1,
   "team may cap at one more rank 5 when enough remain for others' minimums",
+);
+
+assert.equal(
+  canPickRank("B", 5, 1, threeTeams, { 5: 1 }, rank5Quotas, false, true),
+  true,
+  "max-only: team may take last rank 5 even when another team needs minimum",
+);
+
+assert.equal(
+  canPickRank("A", 5, 2, threeTeams, { 5: 1 }, rank5Quotas, false, true),
+  false,
+  "min-only: team at max still blocked",
 );
 
 console.log("quotas.test.mjs passed");

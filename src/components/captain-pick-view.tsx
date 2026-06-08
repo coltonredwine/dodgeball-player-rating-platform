@@ -13,6 +13,7 @@ import { formatRankAverage } from "@/lib/rankings/rank-labels";
 import { formatCalcRankDisplay, type RankThresholds } from "@/lib/rankings/thresholds";
 import { DRAFT_ROOM_DARK } from "@/lib/draft-room-theme";
 import type { QuotaLimits } from "@/lib/draft/quotas";
+import { areQuotasEnabled } from "@/lib/draft/quotas";
 import type { AppNavData } from "@/lib/nav";
 
 type PlayerRow = {
@@ -53,7 +54,8 @@ type DraftStateResponse = {
     name: string;
     isLive: boolean;
     onClockStartedAt: string | null;
-    quotasEnabled: boolean;
+    minQuotasEnabled: boolean;
+    maxQuotasEnabled: boolean;
     status: string;
     rankThresholds: RankThresholds;
     displaySettings: { showRanksOnCaptainView: boolean };
@@ -292,11 +294,13 @@ function CaptainPickPanel({
               {myTeam.roster.length}/{myTeam.targetRosterSize}
             </span>
           </p>
-          {state.draft.quotasEnabled ? (
+          {areQuotasEnabled(state.draft) && myTeam ? (
             <div className="mt-2">
               <TeamQuotaTable
                 quotaNeed={myTeam.quotaNeed}
                 quotaCap={myTeam.quotaCap}
+                showNeed={state.draft.minQuotasEnabled}
+                showCap={state.draft.maxQuotasEnabled}
                 rankGlyphSize={22}
                 rankGlyphSurface={theme.rankGlyphSurface}
                 labelClassName={theme.cardMeta}
@@ -317,10 +321,10 @@ function CaptainPickPanel({
 
       <ul className="space-y-1 lg:space-y-2">
         {state.undrafted.map((p) => {
-          const eligible = state.draft.quotasEnabled
+          const eligible = areQuotasEnabled(state.draft)
             ? (state.eligibility[p.playerId] ?? false)
             : true;
-          const inactive = state.draft.quotasEnabled && !eligible;
+          const inactive = areQuotasEnabled(state.draft) && !eligible;
           const showChoose = eligible;
           const chooseDisabled = !canPick;
           const isPending = pendingPickId === p.playerId;

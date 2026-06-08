@@ -4,6 +4,8 @@ import { RANKS_DESC } from "@/lib/rankings/rank-labels";
 type Props = {
   quotaNeed: Record<number, number>;
   quotaCap: Record<number, number>;
+  showNeed?: boolean;
+  showCap?: boolean;
   rankGlyphSize?: number;
   rankGlyphSurface?: "light" | "dark";
   className?: string;
@@ -16,6 +18,8 @@ type Props = {
 export function TeamQuotaTable({
   quotaNeed,
   quotaCap,
+  showNeed = true,
+  showCap = true,
   rankGlyphSize = 16,
   rankGlyphSurface = "dark",
   className = "",
@@ -42,32 +46,36 @@ export function TeamQuotaTable({
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <th
-            scope="row"
-            className={`border-b px-1 py-1 text-left font-medium ${labelClassName} ${borderClassName}`}
-          >
-            Need
-          </th>
-          {RANKS_DESC.map((rank) => (
-            <td
-              key={rank}
-              className={`border-b px-1 py-1 text-center ${cellClassName} ${borderClassName}`}
+        {showNeed ? (
+          <tr>
+            <th
+              scope="row"
+              className={`border-b px-1 py-1 text-left font-medium ${labelClassName} ${showCap ? borderClassName : ""}`}
             >
-              {quotaNeed[rank] ?? 0}
-            </td>
-          ))}
-        </tr>
-        <tr>
-          <th scope="row" className={`px-1 py-1 text-left font-medium ${labelClassName}`}>
-            Cap
-          </th>
-          {RANKS_DESC.map((rank) => (
-            <td key={rank} className={`px-1 py-1 text-center ${cellClassName}`}>
-              {quotaCap[rank] ?? 0}
-            </td>
-          ))}
-        </tr>
+              Need
+            </th>
+            {RANKS_DESC.map((rank) => (
+              <td
+                key={rank}
+                className={`border-b px-1 py-1 text-center ${cellClassName} ${showCap ? borderClassName : ""}`}
+              >
+                {quotaNeed[rank] ?? 0}
+              </td>
+            ))}
+          </tr>
+        ) : null}
+        {showCap ? (
+          <tr>
+            <th scope="row" className={`px-1 py-1 text-left font-medium ${labelClassName}`}>
+              Cap
+            </th>
+            {RANKS_DESC.map((rank) => (
+              <td key={rank} className={`px-1 py-1 text-center ${cellClassName}`}>
+                {quotaCap[rank] ?? 0}
+              </td>
+            ))}
+          </tr>
+        ) : null}
       </tbody>
     </table>
   );
