@@ -8,6 +8,7 @@ import {
 } from "@/components/captain-pick-controls";
 import { DraftBoardTvView } from "@/components/draft-board-tv-view";
 import { PlayerAvatar } from "@/components/player-avatar";
+import { PlayerSearchInput } from "@/components/player-search-input";
 import { MobileCaptainLayout } from "@/components/mobile-captain-layout";
 import { TeamQuotaTable } from "@/components/team-quota-table";
 import { LeaningIcon } from "@/components/player-leaning-icon";
@@ -21,6 +22,7 @@ import { PlayerPoolRankSections } from "@/components/player-pool-rank-sections";
 import { sortUndraftedWithBookmarks } from "@/lib/draft/bookmarks";
 import { groupPoolPlayersIntoSections } from "@/lib/draft/pool-sections";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
+import { filterPlayersByQuery } from "@/lib/player-search";
 import type { AppNavData } from "@/lib/nav";
 
 type PlayerRow = {
@@ -170,10 +172,14 @@ function CaptainPickPanel({
   const canPick = state.isCaptainTurn && state.draft.isLive;
   const showRanks = state.draft.displaySettings.showRanksOnCaptainView;
   const isMobile = variant === "mobile";
-  const poolPlayers = useMemo(
-    () => sortUndraftedWithBookmarks(state.undrafted, state.flaggedPlayerIds),
-    [state.flaggedPlayerIds, state.undrafted],
-  );
+  const [search, setSearch] = useState("");
+  const poolPlayers = useMemo(() => {
+    let players = sortUndraftedWithBookmarks(state.undrafted, state.flaggedPlayerIds);
+    if (isMobile) {
+      players = filterPlayersByQuery(players, search);
+    }
+    return players;
+  }, [isMobile, search, state.flaggedPlayerIds, state.undrafted]);
   const poolSections = useMemo(
     () =>
       groupPoolPlayersIntoSections(poolPlayers, {
@@ -244,7 +250,20 @@ function CaptainPickPanel({
         </p>
       ) : null}
 
+      {isMobile ? (
+        <PlayerSearchInput
+          value={search}
+          onChange={setSearch}
+          className="w-full rounded-lg border border-[var(--draft-divider)] bg-[var(--draft-surface-1)] px-3 py-2 text-sm text-[var(--draft-text-high)] placeholder:text-[var(--draft-text-disabled)]"
+        />
+      ) : null}
+
       <div className="space-y-1 lg:space-y-2">
+        {poolPlayers.length === 0 ? (
+          <p className="text-sm text-[var(--draft-text-disabled)]">
+            {search ? "No matching players." : "No players available."}
+          </p>
+        ) : (
         <PlayerPoolRankSections
           sections={poolSections}
           rankGlyphSurface={theme.rankGlyphSurface}
@@ -356,6 +375,7 @@ function CaptainPickPanel({
           );
         }}
         />
+        )}
       </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}

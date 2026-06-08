@@ -88,7 +88,7 @@ async function fetchInstagramProfileImageFromApi(username: string): Promise<stri
         "X-Requested-With": "XMLHttpRequest",
         Referer: `https://www.instagram.com/${username}/`,
       },
-      next: { revalidate: 60 * 60 * 24 },
+      cache: "no-store",
     },
   );
 
@@ -106,7 +106,7 @@ async function fetchInstagramProfileImageFromHtml(profileUrl: string): Promise<s
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
       Accept: "text/html,application/xhtml+xml",
     },
-    next: { revalidate: 60 * 60 * 24 },
+    cache: "no-store",
   });
 
   if (!response.ok) return null;
@@ -134,7 +134,7 @@ export async function fetchInstagramProfileImageBytes(imageUrl: string): Promise
       Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
       Referer: "https://www.instagram.com/",
     },
-    next: { revalidate: 60 * 60 * 24 },
+    cache: "no-store",
   });
 
   if (!response.ok) return null;

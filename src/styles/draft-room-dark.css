@@ -38,6 +38,12 @@
   color: var(--draft-text-high);
 }
 
+/** Inset content slightly on TV displays to avoid overscan clipping. */
+.draft-tv-overscan {
+  padding: clamp(0.75rem, 2.5vmin, 1.25rem);
+  box-sizing: border-box;
+}
+
 .draft-tv-title {
   background: linear-gradient(180deg, #ffffff 0%, #94a3b8 100%);
   -webkit-background-clip: text;

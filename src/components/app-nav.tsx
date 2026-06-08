@@ -130,7 +130,7 @@ function UserMenu({
       {open ? (
         <div
           role="menu"
-          className={`absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-lg border ${menuClass}`}
+          className={`absolute right-0 z-[70] mt-2 w-56 overflow-hidden rounded-lg border ${menuClass}`}
         >
           <div className={`border-b px-3 py-2.5 ${isDraftRoom ? "border-[var(--draft-divider)]" : "border-zinc-100"}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-wide ${menuMuted}`}>League</p>
@@ -274,7 +274,7 @@ export function AppNav({
   }
 
   const headerClass = isDraftRoom
-    ? "sticky top-0 z-30 border-b border-[var(--draft-divider)] bg-[var(--draft-surface-2)] text-[var(--draft-text-high)]"
+    ? "sticky top-0 z-[60] border-b border-[var(--draft-divider)] bg-[var(--draft-surface-2)] text-[var(--draft-text-high)]"
     : "sticky top-0 z-30 border-b border-zinc-200 bg-white text-zinc-900";
 
   const draftStatusClass = draftStatusDesktopOnly ? "hidden lg:flex" : "flex";

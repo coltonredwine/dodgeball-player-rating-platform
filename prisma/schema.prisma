@@ -35,6 +35,9 @@ model Player {
   firstName String
   lastName  String
   link      String?
+  avatarImage            Bytes?
+  avatarImageContentType String?
+  avatarImageFetchedAt   DateTime?
   active    Boolean        @default(true)
   ratings   PlayerRating[]
   draftPlayers DraftPlayer[]

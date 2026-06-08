@@ -14,8 +14,8 @@ export default async function DraftBoardPage({
   const { draftId } = await params;
 
   return (
-    <main className={`${DRAFT_ROOM_DARK.page} flex h-dvh flex-col overflow-hidden`}>
-      <section className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-2 sm:px-4">
+    <main className={`${DRAFT_ROOM_DARK.page} draft-tv-overscan flex h-dvh flex-col overflow-hidden`}>
+      <section className="flex min-h-0 flex-1 flex-col">
         <DraftBoardView draftId={draftId} mode="board" />
       </section>
     </main>
