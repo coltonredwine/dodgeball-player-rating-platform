@@ -9,6 +9,9 @@ type Props = {
   tone?: "light" | "dark";
 };
 
+export const PICK_CLOCK_YELLOW_SECONDS = 120;
+export const PICK_CLOCK_FULL_SECONDS = 180;
+
 export function formatPickClockElapsed(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -36,8 +39,8 @@ export function PickClock({ isLive, startedAt, className = "", tone = "dark" }: 
     return () => window.clearInterval(id);
   }, [isLive, startedAt]);
 
-  const isYellow = elapsedSeconds >= 120;
-  const isBlinking = elapsedSeconds >= 300;
+  const isYellow = elapsedSeconds >= PICK_CLOCK_YELLOW_SECONDS;
+  const isBlinking = elapsedSeconds >= PICK_CLOCK_FULL_SECONDS;
 
   const colorClass =
     tone === "light"

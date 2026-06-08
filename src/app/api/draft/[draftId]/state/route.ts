@@ -26,6 +26,7 @@ export async function GET(_request: Request, { params }: Params) {
       ? await prisma.captainPlayerFlag.findMany({
           where: { draftId, teamId: captainTeamId },
           select: { playerId: true },
+          orderBy: { createdAt: "asc" },
         })
       : [];
 

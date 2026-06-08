@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode } from "react";
+import { PlayerAvatar } from "@/components/player-avatar";
 import { TeamQuotaTable } from "@/components/team-quota-table";
 import { LeaningIcon } from "@/components/player-leaning-icon";
 import { PickClock } from "@/components/pick-clock";
 import { RankGlyph } from "@/components/rank-glyph";
+import { resolveGhostRosterPlayers } from "@/lib/draft/bookmarks";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
 import { DRAFT_ROOM_DARK } from "@/lib/draft-room-theme";
 
@@ -16,6 +18,7 @@ type TeamState = {
     playerId: string;
     firstName: string;
     lastName: string;
+    link: string | null;
     rank: number;
     leaning: string;
     isStarter: boolean;
@@ -36,6 +39,16 @@ type PickHistoryEntry = {
 
 type TurnQueueSlot = { pickNumber: number; teamId: string; round: number };
 
+type UndraftedPlayer = {
+  playerId: string;
+  firstName: string;
+  lastName: string;
+  link: string | null;
+  scores: { rank: number; leaning: string } | null;
+};
+
+const MOBILE_ROSTER_AVATAR_SIZE = 32;
+
 export type MobileCaptainState = {
   draft: {
     isLive: boolean;
@@ -49,6 +62,8 @@ export type MobileCaptainState = {
   teams: TeamState[];
   turnQueue: TurnQueueSlot[];
   pickHistory: PickHistoryEntry[];
+  flaggedPlayerIds: string[];
+  undrafted: UndraftedPlayer[];
 };
 
 const theme = DRAFT_ROOM_DARK;
@@ -201,18 +216,75 @@ function MobilePickBar({
   );
 }
 
+function MobileRosterPlayerRow({
+  firstName,
+  lastName,
+  link,
+  rank,
+  leaning,
+  isStarter = false,
+  showRanks,
+  ghost = false,
+}: {
+  firstName: string;
+  lastName: string;
+  link: string | null;
+  rank?: number;
+  leaning: string;
+  isStarter?: boolean;
+  showRanks: boolean;
+  ghost?: boolean;
+}) {
+  const fullName = `${firstName} ${lastName}`;
+
+  return (
+    <li
+      className={[
+        "flex items-center gap-2 border-b py-2 last:border-b-0",
+        ghost
+          ? "draft-roster-ghost mx-0 my-1.5 rounded-lg border-b-0 px-2"
+          : theme.tableRowBorder,
+      ].join(" ")}
+    >
+      <PlayerAvatar link={link} name={fullName} size={MOBILE_ROSTER_AVATAR_SIZE} />
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span
+          className={[
+            "min-w-0 truncate",
+            ghost ? "text-[var(--draft-text-medium)]" : "",
+          ].join(" ")}
+        >
+          {fullName}
+          {isStarter ? " *" : ""}
+        </span>
+        {showRanks && rank != null ? (
+          <RankGlyph
+            rank={rank}
+            size={20}
+            surface={theme.rankGlyphSurface}
+            className="shrink-0"
+          />
+        ) : null}
+      </div>
+      <LeaningIcon leaning={leaning} size={14} className="shrink-0" />
+    </li>
+  );
+}
+
 function MobileTeamPanel({
   team,
   minQuotasEnabled,
   maxQuotasEnabled,
   showRanks,
   isOnClock,
+  ghostPlayers = [],
 }: {
   team: TeamState;
   minQuotasEnabled: boolean;
   maxQuotasEnabled: boolean;
   showRanks: boolean;
   isOnClock: boolean;
+  ghostPlayers?: UndraftedPlayer[];
 }) {
   return (
     <div
@@ -247,6 +319,7 @@ function MobileTeamPanel({
                   quotaCap={team.quotaCap}
                   showNeed={minQuotasEnabled}
                   showCap={maxQuotasEnabled}
+                  maxQuotasEnabled={maxQuotasEnabled}
                   rankGlyphSize={16}
                   rankGlyphSurface={theme.rankGlyphSurface}
                   labelClassName={theme.cardMeta}
@@ -264,22 +337,31 @@ function MobileTeamPanel({
                 <li className={theme.cardStatsMuted}>No picks yet.</li>
               ) : (
                 team.roster.map((p) => (
-                  <li
+                  <MobileRosterPlayerRow
                     key={p.playerId}
-                    className={`flex items-center justify-between gap-2 border-b py-2 last:border-b-0 ${theme.tableRowBorder}`}
-                  >
-                    <span className="min-w-0 truncate">
-                      {p.firstName} {p.lastName}
-                      {p.isStarter ? " *" : ""}
-                    </span>
-                    <span className={`inline-flex shrink-0 items-center gap-1 ${theme.rosterMuted}`}>
-                      {showRanks ? (
-                        <RankGlyph rank={p.rank} size={16} surface={theme.rankGlyphSurface} />
-                      ) : null}
-                      <LeaningIcon leaning={p.leaning} size={14} />
-                    </span>
-                  </li>
+                    firstName={p.firstName}
+                    lastName={p.lastName}
+                    link={p.link}
+                    rank={p.rank}
+                    leaning={p.leaning}
+                    isStarter={p.isStarter}
+                    showRanks={showRanks}
+                  />
                 ))
+              )}
+              {ghostPlayers.map((player) =>
+                player.scores ? (
+                  <MobileRosterPlayerRow
+                    key={`ghost-${player.playerId}`}
+                    firstName={player.firstName}
+                    lastName={player.lastName}
+                    link={player.link}
+                    rank={player.scores.rank}
+                    leaning={player.scores.leaning}
+                    showRanks={showRanks}
+                    ghost
+                  />
+                ) : null,
               )}
             </ul>
             {team.stats.avgRank != null ? (
@@ -317,6 +399,14 @@ export function MobileCaptainLayout({
   );
 
   const myTeamPanelIndex = 1;
+  const captainGhostPlayers = useMemo(() => {
+    if (!myTeam) return [];
+    return resolveGhostRosterPlayers(
+      state.flaggedPlayerIds,
+      myTeam.roster.map((player) => player.playerId),
+      state.undrafted,
+    );
+  }, [myTeam, state.flaggedPlayerIds, state.undrafted]);
 
   const scrollToPanel = useCallback(
     (index: number) => {
@@ -375,6 +465,7 @@ export function MobileCaptainLayout({
             maxQuotasEnabled={state.draft.maxQuotasEnabled}
             showRanks={showRanks}
             isOnClock={myTeam.id === state.onClockTeamId}
+            ghostPlayers={captainGhostPlayers}
           />
         ) : null}
         {otherTeams.map((team) => (

@@ -15,7 +15,7 @@ export default async function DraftBoardPage({
 
   return (
     <main className={`${DRAFT_ROOM_DARK.page} flex h-dvh flex-col overflow-hidden`}>
-      <section className="mx-auto flex min-h-0 w-full max-w-[1920px] flex-1 flex-col px-6 py-4">
+      <section className="flex min-h-0 flex-1 flex-col px-3 pb-3 pt-2 sm:px-4">
         <DraftBoardView draftId={draftId} mode="board" />
       </section>
     </main>

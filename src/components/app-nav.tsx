@@ -97,7 +97,7 @@ function UserMenu({
     ? "text-[var(--draft-text-high)] hover:bg-[var(--draft-hover)]"
     : "text-zinc-900 hover:bg-zinc-50";
   const menuClass = isDraftRoom
-    ? "border-[var(--draft-divider)] bg-[var(--draft-surface-3)] text-[var(--draft-text-high)] shadow-lg shadow-black/30"
+    ? "border-[var(--draft-divider)] bg-[var(--draft-surface-3)] text-[var(--draft-text-high)] shadow-lg shadow-[var(--draft-shadow)]"
     : "border-zinc-200 bg-white text-zinc-900 shadow-lg";
   const menuMuted = isDraftRoom ? "text-[var(--draft-text-medium)]" : "text-zinc-500";
   const menuItemHover = isDraftRoom

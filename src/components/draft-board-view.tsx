@@ -15,6 +15,7 @@ import type { QuotaLimits } from "@/lib/draft/quotas";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
 import { formatCalcRankDisplay, type RankThresholds } from "@/lib/rankings/thresholds";
+import { DraftBoardTvView } from "@/components/draft-board-tv-view";
 import { DRAFT_ROOM_CLASS, DRAFT_ROOM_DARK, DRAFT_ROOM_LIGHT } from "@/lib/draft-room-theme";
 
 export type DraftBoardStatus = {
@@ -44,6 +45,7 @@ type TeamState = {
     playerId: string;
     firstName: string;
     lastName: string;
+    link: string | null;
     rank: number;
     leaning: string;
     isStarter: boolean;
@@ -84,6 +86,14 @@ type DraftStatePayload = {
   totalPicks: number;
   onClockTeamId: string | null;
   turnQueue: Array<{ pickNumber: number; teamId: string; round: number }>;
+  pickHistory: Array<{
+    pickNumber: number;
+    teamId: string;
+    captainName: string;
+    playerId: string;
+    firstName: string;
+    lastName: string;
+  }>;
   undrafted: UndraftedPlayer[];
   undraftedTotal: number;
   undraftedRankCounts: Record<number, number>;
@@ -354,11 +364,15 @@ export function DraftBoardView({
   if (error) return <p className="text-red-600">{error}</p>;
   if (!state) return <p className="text-zinc-500">Loading draft…</p>;
 
+  if (mode === "board") {
+    return <DraftBoardTvView state={state} />;
+  }
+
   const draftState = state;
   const onClock = draftState.teams.find((t) => t.id === draftState.onClockTeamId);
-  const isBoard = mode === "board";
+  const isBoard = false;
   const isAdmin = mode === "admin";
-  const isDarkRoom = mode === "board" || mode === "captain";
+  const isDarkRoom = mode === "captain";
   const showDraftCalcDisplay = !isAdmin;
   const theme = isDarkRoom ? DRAFT_ROOM_DARK : DRAFT_ROOM_LIGHT;
   const display = isBoard
@@ -752,7 +766,7 @@ export function DraftBoardView({
             captainCardFlexClass,
             isAdmin ? "min-w-[11rem] bg-white shadow-sm ring-1 ring-zinc-200/90" : "",
             team.id === state.onClockTeamId && isDarkRoom ? "draft-on-clock-glow" : "",
-            isCaptainTeam ? "relative z-[1] shadow-lg shadow-black/35 ring-2 ring-[var(--draft-text-high)]/20" : "",
+            isCaptainTeam ? "relative z-[1] shadow-lg shadow-[var(--draft-shadow)] ring-2 ring-[var(--draft-divider)]" : "",
           ].join(" ")}
           style={{
             borderTopWidth: isCaptainTeam ? Math.max(display.cardBorder, 6) : display.cardBorder,
@@ -792,6 +806,7 @@ export function DraftBoardView({
                   quotaCap={team.quotaCap}
                   showNeed={state.draft.minQuotasEnabled}
                   showCap={state.draft.maxQuotasEnabled}
+                  maxQuotasEnabled={state.draft.maxQuotasEnabled}
                   rankGlyphSize={isCaptainTeam && mode === "captain" ? display.rankGlyphSm + 2 : display.rankGlyphSm}
                   rankGlyphSurface={theme.rankGlyphSurface}
                   labelClassName={theme.cardMeta}
