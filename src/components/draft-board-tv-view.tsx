@@ -176,7 +176,7 @@ function PlayerPoolCard({
           onClick={() => captain.onToggleFlag(player.playerId)}
         />
       ) : null}
-      <PlayerAvatar link={player.link} name={fullName} size={TV_PLAYER_AVATAR_SIZE} />
+      <PlayerAvatar playerId={player.playerId} link={player.link} name={fullName} size={TV_PLAYER_AVATAR_SIZE} />
       <div
         className={[
           "flex min-w-0 flex-1 flex-col",
@@ -258,7 +258,7 @@ function GhostRosterSlot({
 
   return (
     <div className="draft-tv-roster-slot draft-roster-ghost flex items-center gap-2 px-2 py-2">
-      <PlayerAvatar link={player.link} name={fullName} size={TV_PLAYER_AVATAR_SIZE} />
+      <PlayerAvatar playerId={player.playerId} link={player.link} name={fullName} size={TV_PLAYER_AVATAR_SIZE} />
       <div
         className="flex min-w-0 flex-1 flex-col"
         style={{ minHeight: TV_PLAYER_AVATAR_SIZE }}
@@ -311,7 +311,7 @@ function RosterSlot({
 
   return (
     <div className="draft-tv-roster-slot flex items-center gap-2 px-2 py-2">
-      <PlayerAvatar link={player.link} name={fullName} size={TV_PLAYER_AVATAR_SIZE} />
+      <PlayerAvatar playerId={player.playerId} link={player.link} name={fullName} size={TV_PLAYER_AVATAR_SIZE} />
       <div
         className="flex min-w-0 flex-1 flex-col"
         style={{ minHeight: TV_PLAYER_AVATAR_SIZE }}

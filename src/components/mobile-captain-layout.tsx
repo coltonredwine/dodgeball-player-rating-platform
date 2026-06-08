@@ -217,6 +217,7 @@ function MobilePickBar({
 }
 
 function MobileRosterPlayerRow({
+  playerId,
   firstName,
   lastName,
   link,
@@ -226,6 +227,7 @@ function MobileRosterPlayerRow({
   showRanks,
   ghost = false,
 }: {
+  playerId: string;
   firstName: string;
   lastName: string;
   link: string | null;
@@ -246,7 +248,7 @@ function MobileRosterPlayerRow({
           : theme.tableRowBorder,
       ].join(" ")}
     >
-      <PlayerAvatar link={link} name={fullName} size={MOBILE_ROSTER_AVATAR_SIZE} />
+      <PlayerAvatar playerId={playerId} link={link} name={fullName} size={MOBILE_ROSTER_AVATAR_SIZE} />
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         <span
           className={[
@@ -339,6 +341,7 @@ function MobileTeamPanel({
                 team.roster.map((p) => (
                   <MobileRosterPlayerRow
                     key={p.playerId}
+                    playerId={p.playerId}
                     firstName={p.firstName}
                     lastName={p.lastName}
                     link={p.link}
@@ -353,6 +356,7 @@ function MobileTeamPanel({
                 player.scores ? (
                   <MobileRosterPlayerRow
                     key={`ghost-${player.playerId}`}
+                    playerId={player.playerId}
                     firstName={player.firstName}
                     lastName={player.lastName}
                     link={player.link}

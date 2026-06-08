@@ -11,6 +11,24 @@ const RESERVED_PATH_SEGMENTS = new Set([
   "tv",
 ]);
 
+export function normalizeProfileLink(url: string): string {
+  try {
+    const parsed = new URL(url.trim());
+    parsed.hostname = parsed.hostname.replace(/^www\./, "").toLowerCase();
+    parsed.hash = "";
+    parsed.search = "";
+    const path = parsed.pathname.replace(/\/+$/, "");
+    parsed.pathname = path || "/";
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return url.trim();
+  }
+}
+
+export function profileLinksMatch(a: string, b: string): boolean {
+  return normalizeProfileLink(a) === normalizeProfileLink(b);
+}
+
 export function isInstagramProfileUrl(url: string): boolean {
   try {
     const parsed = new URL(url);

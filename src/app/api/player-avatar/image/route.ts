@@ -1,22 +1,37 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { NextResponse } from "next/server";
-import { resolveSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   fetchInstagramProfileImage,
   fetchInstagramProfileImageBytes,
   isInstagramProfileUrl,
+  normalizeProfileLink,
+  profileLinksMatch,
 } from "@/lib/player-avatar";
 
 export const dynamic = "force-dynamic";
 
-function defaultAvatarRedirect(request: Request) {
-  return NextResponse.redirect(new URL("/images/default-avatar.png", request.url), 302);
+const DEFAULT_AVATAR_PATH = path.join(process.cwd(), "public/images/default-avatar.png");
+let defaultAvatarCache: { bytes: Uint8Array; contentType: string } | null = null;
+
+async function defaultAvatarResponse() {
+  if (!defaultAvatarCache) {
+    defaultAvatarCache = {
+      bytes: new Uint8Array(await readFile(DEFAULT_AVATAR_PATH)),
+      contentType: "image/png",
+    };
+  }
+
+  return new NextResponse(defaultAvatarCache.bytes as BodyInit, {
+    headers: {
+      "Content-Type": defaultAvatarCache.contentType,
+      "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+    },
+  });
 }
 
-function cachedAvatarResponse(
-  bytes: Uint8Array,
-  contentType: string | null | undefined,
-) {
+function cachedAvatarResponse(bytes: Uint8Array, contentType: string | null | undefined) {
   return new NextResponse(bytes as BodyInit, {
     headers: {
       "Content-Type": contentType ?? "image/jpeg",
@@ -54,42 +69,78 @@ async function resolveRemoteAvatarBytes(link: string) {
   return { bytes, contentType };
 }
 
+type AvatarPlayer = {
+  id: string;
+  link: string | null;
+  avatarImage: Uint8Array | null;
+  avatarImageContentType: string | null;
+};
+
+const avatarPlayerSelect = {
+  id: true,
+  link: true,
+  avatarImage: true,
+  avatarImageContentType: true,
+} as const;
+
+async function findPlayerById(playerId: string): Promise<AvatarPlayer | null> {
+  return prisma.player.findUnique({
+    where: { id: playerId },
+    select: avatarPlayerSelect,
+  });
+}
+
+async function findPlayerByLink(link: string): Promise<AvatarPlayer | null> {
+  const trimmed = link.trim();
+  const exact = await prisma.player.findFirst({
+    where: { link: trimmed },
+    select: avatarPlayerSelect,
+  });
+  if (exact) return exact;
+
+  const normalized = normalizeProfileLink(trimmed);
+  const candidates = await prisma.player.findMany({
+    where: { link: { not: null } },
+    select: avatarPlayerSelect,
+  });
+
+  return candidates.find((player) => player.link && profileLinksMatch(player.link, trimmed)) ?? null;
+}
+
+function avatarBytes(player: AvatarPlayer): Uint8Array | null {
+  if (!player.avatarImage || player.avatarImage.length === 0) return null;
+  return new Uint8Array(player.avatarImage);
+}
+
 export async function GET(request: Request) {
-  const session = await resolveSession();
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { searchParams } = new URL(request.url);
+  const playerId = searchParams.get("playerId");
   const link = searchParams.get("link");
-  if (!link) {
-    return NextResponse.json({ error: "Missing link" }, { status: 400 });
-  }
 
-  if (!isInstagramProfileUrl(link)) {
-    return defaultAvatarRedirect(request);
+  if (!playerId && !link) {
+    return NextResponse.json({ error: "Missing playerId or link" }, { status: 400 });
   }
 
   try {
-    const player = await prisma.player.findFirst({
-      where: { link },
-      select: {
-        id: true,
-        avatarImage: true,
-        avatarImageContentType: true,
-      },
-    });
+    const player = playerId
+      ? await findPlayerById(playerId)
+      : link
+        ? await findPlayerByLink(link)
+        : null;
 
-    if (player?.avatarImage) {
-      return cachedAvatarResponse(
-        new Uint8Array(player.avatarImage),
-        player.avatarImageContentType,
-      );
+    const resolvedLink = link?.trim() ?? player?.link ?? null;
+    if (!resolvedLink || !isInstagramProfileUrl(resolvedLink)) {
+      return defaultAvatarResponse();
     }
 
-    const remote = await resolveRemoteAvatarBytes(link);
+    const cached = player ? avatarBytes(player) : null;
+    if (cached) {
+      return cachedAvatarResponse(cached, player?.avatarImageContentType);
+    }
+
+    const remote = await resolveRemoteAvatarBytes(resolvedLink);
     if (!remote) {
-      return defaultAvatarRedirect(request);
+      return defaultAvatarResponse();
     }
 
     if (player) {
@@ -98,6 +149,6 @@ export async function GET(request: Request) {
 
     return cachedAvatarResponse(remote.bytes, remote.contentType);
   } catch {
-    return defaultAvatarRedirect(request);
+    return defaultAvatarResponse();
   }
 }

@@ -4,12 +4,25 @@ import {
   extractInstagramProfileImage,
   extractInstagramUsername,
   isInstagramProfileUrl,
+  normalizeProfileLink,
+  profileLinksMatch,
 } from "./player-avatar.ts";
 
 test("isInstagramProfileUrl accepts profile links", () => {
   assert.equal(isInstagramProfileUrl("https://www.instagram.com/ajeckstein"), true);
   assert.equal(isInstagramProfileUrl("https://instagram.com/ajeckstein/"), true);
   assert.equal(isInstagramProfileUrl("https://twitter.com/user"), false);
+});
+
+test("normalizeProfileLink treats trailing slash and www as equivalent", () => {
+  assert.equal(
+    normalizeProfileLink("https://www.instagram.com/ajeckstein/"),
+    normalizeProfileLink("https://instagram.com/ajeckstein"),
+  );
+  assert.equal(
+    profileLinksMatch("https://www.instagram.com/ajeckstein/", "https://instagram.com/ajeckstein"),
+    true,
+  );
 });
 
 test("extractInstagramUsername parses common profile URLs", () => {

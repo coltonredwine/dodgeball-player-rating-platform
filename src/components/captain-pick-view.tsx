@@ -334,6 +334,7 @@ function CaptainPickPanel({
               <div className="lg:hidden">
                 <div className="flex items-center gap-2 px-3 py-2">
                   <PlayerAvatar
+                    playerId={p.playerId}
                     link={p.link}
                     name={`${p.firstName} ${p.lastName}`}
                     size={36}

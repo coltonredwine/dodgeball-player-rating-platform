@@ -5,19 +5,28 @@ import { useState } from "react";
 const DEFAULT_AVATAR = "/images/default-avatar.png";
 
 type Props = {
+  playerId?: string | null;
   link: string | null | undefined;
   name: string;
   size?: number;
   className?: string;
 };
 
-export function PlayerAvatar({ link, name, size = 40, className = "" }: Props) {
+function avatarImageSrc(playerId: string | null | undefined, link: string | null | undefined) {
+  if (playerId) {
+    return `/api/player-avatar/image?playerId=${encodeURIComponent(playerId)}`;
+  }
+  if (link) {
+    return `/api/player-avatar/image?link=${encodeURIComponent(link)}`;
+  }
+  return null;
+}
+
+export function PlayerAvatar({ playerId, link, name, size = 40, className = "" }: Props) {
   const [failed, setFailed] = useState(false);
 
-  const src =
-    link && !failed
-      ? `/api/player-avatar/image?link=${encodeURIComponent(link)}`
-      : DEFAULT_AVATAR;
+  const apiSrc = avatarImageSrc(playerId, link);
+  const src = apiSrc && !failed ? apiSrc : DEFAULT_AVATAR;
 
   const imageClassName = `block rounded-full object-cover bg-[var(--draft-surface-4)] ${className}`;
 
