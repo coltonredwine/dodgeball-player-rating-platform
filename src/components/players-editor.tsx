@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ScrollableListCard } from "@/components/scrollable-list-card";
 
 type Player = {
   id: string;
@@ -117,9 +118,9 @@ export function PlayersEditor({ players, permissions }: Props) {
       {message ? <p className="text-sm text-green-700">{message}</p> : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
 
-      <div className="min-w-0 overflow-x-auto rounded border border-zinc-200">
+      <ScrollableListCard title="Players">
         <table className="w-full border-collapse text-sm">
-          <thead className="bg-zinc-100 text-zinc-900">
+          <thead className="sticky top-0 z-10 bg-zinc-100 text-zinc-900">
           <tr>
             <th className="px-3 py-2 text-left">First</th>
             <th className="px-3 py-2 text-left">Last</th>
@@ -149,7 +150,7 @@ export function PlayersEditor({ players, permissions }: Props) {
           ))}
         </tbody>
         </table>
-      </div>
+      </ScrollableListCard>
 
       <ConfirmDialog
         open={deleteTargetId !== null}

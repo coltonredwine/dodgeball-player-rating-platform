@@ -4,7 +4,7 @@ import { RatingGuideModal } from "@/components/rating-guide-modal";
 import { RatingGrid } from "@/components/rating-grid";
 import { getSession, resolveSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getNavLinks } from "@/lib/nav";
+import { getAppNavData } from "@/lib/nav";
 import { getOrCreateSubmission } from "@/lib/rating";
 import {
   isRaterScoringLocked,
@@ -85,9 +85,11 @@ export default async function RatePage() {
     };
   });
 
+  const nav = await getAppNavData(session);
+
   return (
     <main className="min-w-0 overflow-x-hidden bg-white text-zinc-900">
-      <AppNav links={getNavLinks(session)} displayName={session.name || session.email} />
+      <AppNav {...nav} />
       <section className="mx-auto min-w-0 max-w-7xl px-3 py-6 sm:px-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold">{pageTitle}</h1>

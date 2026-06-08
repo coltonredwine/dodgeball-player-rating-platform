@@ -5,9 +5,9 @@ export const RATER_EXPORT_HEADERS = [
   "Last Name",
   "Power",
   "Accuracy",
-  "Intimidation",
   "Catching",
   "Evasion",
+  "Intimidation",
   "Nerve",
   "I don't know this player",
 ] as const;
@@ -35,9 +35,9 @@ export function buildRaterExportCsv(ratings: ExportRating[]) {
     row.player.lastName,
     row.power,
     row.accuracy,
-    row.intimidation,
     row.catching,
     row.evasion,
+    row.intimidation,
     row.nerve,
     row.unknownPlayer ? "true" : "false",
   ]);

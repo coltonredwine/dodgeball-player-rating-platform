@@ -27,8 +27,7 @@ function MobileRotatedHeader({ label }: { label: string }) {
 
 export function RaterScoresTable({ rows }: { rows: RaterScoreRow[] }) {
   return (
-    <div className="max-h-[75vh] w-full min-w-0 overflow-auto rounded border border-zinc-200">
-      <table className="w-full table-fixed border-collapse text-sm sm:table-auto sm:min-w-full">
+    <table className="w-full table-fixed border-collapse text-sm sm:table-auto sm:min-w-full">
         <colgroup className="sm:hidden">
           <col className="w-[26%]" />
           {METRIC_FIELDS.map((field) => (
@@ -104,6 +103,5 @@ export function RaterScoresTable({ rows }: { rows: RaterScoreRow[] }) {
           })}
         </tbody>
       </table>
-    </div>
   );
 }

@@ -2,11 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
 import { RaterScoresTable } from "@/components/rater-scores-table";
+import { ScrollableListCard } from "@/components/scrollable-list-card";
 import { resolveSession } from "@/lib/auth";
 import { getRaterProgress } from "@/lib/completion";
 import { prisma } from "@/lib/db";
 import { formatRaterExportFilename } from "@/lib/rater-export";
-import { getNavLinks } from "@/lib/nav";
+import { getAppNavData } from "@/lib/nav";
 import { isBackendUser } from "@/lib/rbac";
 import { getLatestRaterSubmission } from "@/lib/rater-submission";
 
@@ -45,10 +46,11 @@ export default async function RaterPreviewPage({
     rater.name,
     submission?.submittedAt ?? submission?.updatedAt,
   );
+  const nav = await getAppNavData(session);
 
   return (
     <main className="min-w-0 overflow-x-hidden bg-white text-zinc-900">
-      <AppNav links={getNavLinks(session)} displayName={session.name || session.email} />
+      <AppNav {...nav} />
       <section className="mx-auto min-w-0 max-w-7xl space-y-4 px-3 py-6 sm:px-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -88,15 +90,17 @@ export default async function RaterPreviewPage({
             No scores saved yet for this rater.
           </p>
         ) : (
-          <RaterScoresTable
-            rows={activePlayers.map((player) => ({
-              playerId: player.id,
-              firstName: player.firstName,
-              lastName: player.lastName,
-              link: player.link,
-              rating: ratingByPlayerId.get(player.id) ?? null,
-            }))}
-          />
+          <ScrollableListCard title="Players" maxHeightClass="max-h-[75vh]">
+            <RaterScoresTable
+              rows={activePlayers.map((player) => ({
+                playerId: player.id,
+                firstName: player.firstName,
+                lastName: player.lastName,
+                link: player.link,
+                rating: ratingByPlayerId.get(player.id) ?? null,
+              }))}
+            />
+          </ScrollableListCard>
         )}
 
         <p className="text-xs text-zinc-500">Export filename: {exportFilename}</p>

@@ -24,6 +24,12 @@ enum RaterRole {
   admin
 }
 
+enum DraftStatus {
+  setup
+  in_progress
+  complete
+}
+
 model Player {
   id        String         @id @default(cuid())
   firstName String
@@ -31,6 +37,12 @@ model Player {
   link      String?
   active    Boolean        @default(true)
   ratings   PlayerRating[]
+  draftPlayers DraftPlayer[]
+  draftStartingPlayers DraftStartingPlayer[]
+  draftPicks DraftPick[]
+  draftScoreExclusions DraftScoreExclusion[]
+  draftScoreOverrides DraftScoreOverride[]
+  captainPlayerFlags CaptainPlayerFlag[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -46,6 +58,8 @@ model Rater {
   active           Boolean            @default(true)
   inviteCodes InviteCode[]
   submissions RatingSubmission[]
+  draftTeams  DraftTeam[]
+  draftScoreExclusions DraftScoreExclusion[]
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 }
@@ -108,4 +122,136 @@ model PlayerRating {
   player         Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([submissionId, playerId])
+}
+
+model Draft {
+  id               String   @id @default(cuid())
+  name             String
+  seasonLabel      String
+  status           DraftStatus @default(setup)
+  isLive           Boolean  @default(false)
+  teamCount        Int
+  rankThresholds   String
+  quotasEnabled    Boolean  @default(true)
+  displaySettings  String   @default("{}")
+  liveAt           DateTime?
+  onClockStartedAt DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  players          DraftPlayer[]
+  teams            DraftTeam[]
+  picks            DraftPick[]
+  startingPlayers  DraftStartingPlayer[]
+  scoreExclusions  DraftScoreExclusion[]
+  scoreOverrides   DraftScoreOverride[]
+  captainFlags     CaptainPlayerFlag[]
+
+  @@index([status])
+  @@index([seasonLabel])
+}
+
+model DraftPlayer {
+  id        String   @id @default(cuid())
+  draftId   String
+  playerId  String
+  createdAt DateTime @default(now())
+  draft     Draft    @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, playerId])
+  @@index([draftId])
+}
+
+model DraftTeam {
+  id        String   @id @default(cuid())
+  draftId   String
+  raterId   String
+  pickOrder Int
+  color     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  draft     Draft    @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  rater     Rater    @relation(fields: [raterId], references: [id], onDelete: Restrict)
+  startingPlayers DraftStartingPlayer[]
+  picks     DraftPick[]
+  captainFlags CaptainPlayerFlag[]
+
+  @@unique([draftId, raterId])
+  @@unique([draftId, pickOrder])
+  @@index([draftId])
+}
+
+model DraftStartingPlayer {
+  id        String   @id @default(cuid())
+  draftId   String
+  teamId    String
+  playerId  String
+  createdAt DateTime @default(now())
+  draft     Draft    @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  team      DraftTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, playerId])
+  @@index([teamId])
+}
+
+model DraftPick {
+  id         String   @id @default(cuid())
+  draftId    String
+  teamId     String
+  playerId   String
+  pickNumber Int
+  round      Int
+  pickedAt   DateTime @default(now())
+  draft      Draft    @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  team       DraftTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, playerId])
+  @@unique([draftId, pickNumber])
+  @@index([draftId, teamId])
+}
+
+model DraftScoreExclusion {
+  id        String   @id @default(cuid())
+  draftId   String
+  playerId  String
+  raterId   String
+  createdAt DateTime @default(now())
+  draft     Draft    @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  rater     Rater    @relation(fields: [raterId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, playerId, raterId])
+  @@index([draftId, playerId])
+}
+
+model DraftScoreOverride {
+  id        String   @id @default(cuid())
+  draftId   String
+  playerId  String
+  metric    String
+  value     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  draft     Draft    @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, playerId, metric])
+  @@index([draftId, playerId])
+}
+
+model CaptainPlayerFlag {
+  id        String   @id @default(cuid())
+  draftId   String
+  teamId    String
+  playerId  String
+  createdAt DateTime @default(now())
+  draft     Draft    @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  team      DraftTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, teamId, playerId])
+  @@index([teamId])
 }

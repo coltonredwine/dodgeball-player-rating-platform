@@ -1,0 +1,381 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode } from "react";
+import { TeamQuotaTable } from "@/components/team-quota-table";
+import { LeaningIcon } from "@/components/player-leaning-icon";
+import { PickClock } from "@/components/pick-clock";
+import { RankGlyph } from "@/components/rank-glyph";
+import { DRAFT_ROOM_DARK } from "@/lib/draft-room-theme";
+
+type TeamState = {
+  id: string;
+  captainName: string;
+  color: string;
+  roster: Array<{
+    playerId: string;
+    firstName: string;
+    lastName: string;
+    rank: number;
+    leaning: string;
+    isStarter: boolean;
+  }>;
+  targetRosterSize: number;
+  quotaNeed: Record<number, number>;
+  quotaCap: Record<number, number>;
+  stats: { avgRank: number | null };
+};
+
+type PickHistoryEntry = {
+  pickNumber: number;
+  teamId: string;
+  captainName: string;
+  firstName: string;
+  lastName: string;
+};
+
+type TurnQueueSlot = { pickNumber: number; teamId: string; round: number };
+
+export type MobileCaptainState = {
+  draft: { isLive: boolean; quotasEnabled: boolean; onClockStartedAt: string | null };
+  onClockTeamId: string | null;
+  captainTeamId: string | null;
+  isCaptainTurn: boolean;
+  teams: TeamState[];
+  turnQueue: TurnQueueSlot[];
+  pickHistory: PickHistoryEntry[];
+};
+
+const theme = DRAFT_ROOM_DARK;
+const PICK_BAR_HEIGHT = "3.25rem";
+const CAROUSEL_SIDE = "0.75rem";
+const CAROUSEL_PEEK = "0.625rem";
+const CAROUSEL_PANEL_WIDTH = `calc(100vw - ${CAROUSEL_SIDE} - ${CAROUSEL_SIDE} - ${CAROUSEL_PEEK})`;
+const carouselPanelClass = "flex h-full shrink-0 snap-start flex-col overflow-hidden";
+
+function MobilePickBar({
+  state,
+  drawerOpen,
+  onToggleDrawer,
+  onCloseDrawer,
+}: {
+  state: MobileCaptainState;
+  drawerOpen: boolean;
+  onToggleDrawer: () => void;
+  onCloseDrawer: () => void;
+}) {
+  const onClock = state.teams.find((t) => t.id === state.onClockTeamId);
+  const nextSlot = state.turnQueue[1];
+  const nextTeam = nextSlot ? state.teams.find((t) => t.id === nextSlot.teamId) : null;
+  const isMyTurn = state.isCaptainTurn && state.draft.isLive;
+
+  return (
+    <>
+      {drawerOpen ? (
+        <button
+          type="button"
+          aria-label="Close pick history"
+          className="fixed inset-0 z-40 bg-black/50 transition-opacity duration-300"
+          onClick={onCloseDrawer}
+        />
+      ) : null}
+
+      <header
+        className={`relative sticky top-0 z-50 shrink-0 border-b ${theme.panelDivider} ${
+          isMyTurn ? "draft-captain-turn-glow" : theme.panelHeader
+        }`}
+        style={{
+          ["--mobile-pick-bar-height" as string]: PICK_BAR_HEIGHT,
+          ...(isMyTurn ? ({ "--captain-turn-color": "#d4af37" } as CSSProperties) : {}),
+        }}
+      >
+        <button
+          type="button"
+          className="flex w-full items-center gap-3 px-4 text-left"
+          style={{ minHeight: PICK_BAR_HEIGHT }}
+          onClick={onToggleDrawer}
+          aria-expanded={drawerOpen}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--draft-text-medium)]">
+                Current pick
+              </p>
+              <PickClock
+                isLive={state.draft.isLive}
+                startedAt={state.draft.onClockStartedAt}
+                className="text-xs"
+              />
+            </div>
+            <p
+              className={`truncate text-sm font-semibold ${
+                isMyTurn ? "text-amber-200" : ""
+              }`}
+            >
+              {onClock ? onClock.captainName : "Waiting"}
+              {!state.draft.isLive ? " · Preview" : ""}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 text-right">
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--draft-text-medium)]">
+                Next pick
+              </p>
+              <p className="truncate text-sm font-semibold">
+                {nextTeam ? nextTeam.captainName : onClock ? "—" : "—"}
+              </p>
+            </div>
+            <svg
+              aria-hidden="true"
+              className={`h-4 w-4 shrink-0 text-[var(--draft-text-medium)] transition-transform duration-300 ${
+                drawerOpen ? "rotate-180" : ""
+              }`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </button>
+
+        <div
+          className={`absolute left-0 right-0 top-full z-50 overflow-hidden border-b shadow-lg transition-[max-height,opacity] duration-300 ease-out ${theme.card} ${theme.cardBorder} ${
+            drawerOpen ? "max-h-[min(50vh,24rem)] opacity-100" : "pointer-events-none max-h-0 opacity-0"
+          }`}
+        >
+          <div className="flex max-h-[min(50vh,24rem)] flex-col">
+            <div
+              className={`flex shrink-0 items-center justify-between border-b px-4 py-2 ${theme.panelDivider}`}
+            >
+              <span className="text-sm font-medium">Pick history</span>
+              <button
+                type="button"
+                aria-label="Close"
+                className="rounded p-1 text-[var(--draft-text-medium)] hover:bg-[var(--draft-hover)]"
+                onClick={onCloseDrawer}
+              >
+                <svg
+                  aria-hidden="true"
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+            <ul className="min-h-0 flex-1 overflow-y-auto px-4 py-2 text-sm">
+              {state.pickHistory.length === 0 ? (
+                <li className={`py-2 ${theme.cardMeta}`}>No picks yet.</li>
+              ) : (
+                state.pickHistory.map((entry) => {
+                  const team = state.teams.find((t) => t.id === entry.teamId);
+                  return (
+                    <li
+                      key={entry.pickNumber}
+                      className={`border-b py-2 last:border-b-0 ${theme.panelDivider}`}
+                    >
+                      <span className="font-medium" style={{ color: team?.color ?? undefined }}>
+                        {entry.captainName}
+                      </span>{" "}
+                      chose {entry.firstName} {entry.lastName}
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </div>
+        </div>
+      </header>
+    </>
+  );
+}
+
+function MobileTeamPanel({
+  team,
+  quotasEnabled,
+  showRanks,
+  isOnClock,
+}: {
+  team: TeamState;
+  quotasEnabled: boolean;
+  showRanks: boolean;
+  isOnClock: boolean;
+}) {
+  return (
+    <div
+      className={`${carouselPanelClass} mt-2 h-[calc(100%-0.5rem)]`}
+      style={{ flex: `0 0 ${CAROUSEL_PANEL_WIDTH}` }}
+    >
+      <div
+        className={[
+          "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border-t-4",
+          theme.cardBorder,
+          isOnClock ? "draft-on-clock-glow" : theme.card,
+        ].join(" ")}
+        style={{
+          borderTopColor: team.color,
+          ...(isOnClock ? ({ "--on-clock-color": team.color } as CSSProperties) : {}),
+        }}
+      >
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div
+            className={`sticky top-0 z-30 border-b px-3 py-2 ${theme.cardBorder} bg-[var(--draft-surface-2)]`}
+          >
+            <p className="text-base font-semibold leading-snug">
+              {team.captainName}
+              <span className={`ml-2 text-sm font-normal ${theme.cardMeta}`}>
+                {team.roster.length}/{team.targetRosterSize}
+              </span>
+            </p>
+            {quotasEnabled ? (
+              <div className="mt-1.5">
+                <TeamQuotaTable
+                  quotaNeed={team.quotaNeed}
+                  quotaCap={team.quotaCap}
+                  rankGlyphSize={16}
+                  rankGlyphSurface={theme.rankGlyphSurface}
+                  labelClassName={theme.cardMeta}
+                  headerClassName={theme.cardMeta}
+                  cellClassName={`${theme.cardStats} tabular-nums`}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="px-3 pb-4 pt-2">
+            <p className={`mb-2 text-xs font-semibold uppercase tracking-wide ${theme.cardMeta}`}>Roster</p>
+            <ul className="space-y-0 text-sm">
+              {team.roster.length === 0 ? (
+                <li className={theme.cardStatsMuted}>No picks yet.</li>
+              ) : (
+                team.roster.map((p) => (
+                  <li
+                    key={p.playerId}
+                    className={`flex items-center justify-between gap-2 border-b py-2 last:border-b-0 ${theme.tableRowBorder}`}
+                  >
+                    <span className="min-w-0 truncate">
+                      {p.firstName} {p.lastName}
+                      {p.isStarter ? " *" : ""}
+                    </span>
+                    <span className={`inline-flex shrink-0 items-center gap-1 ${theme.rosterMuted}`}>
+                      {showRanks ? (
+                        <RankGlyph rank={p.rank} size={16} surface={theme.rankGlyphSurface} />
+                      ) : null}
+                      <LeaningIcon leaning={p.leaning} size={14} />
+                    </span>
+                  </li>
+                ))
+              )}
+            </ul>
+            {team.stats.avgRank != null ? (
+              <p className={`mt-4 text-center text-sm tabular-nums ${theme.cardStats}`}>
+                Roster average: {team.stats.avgRank.toFixed(2)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function MobileCaptainLayout({
+  state,
+  showRanks,
+  onOpenTeamRef,
+  children,
+}: {
+  state: MobileCaptainState;
+  showRanks: boolean;
+  onOpenTeamRef?: MutableRefObject<(() => void) | null>;
+  children: ReactNode;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const wasCaptainTurnRef = useRef(false);
+
+  const myTeamId = state.captainTeamId;
+  const myTeam = state.teams.find((t) => t.id === myTeamId);
+  const otherTeams = useMemo(
+    () => state.teams.filter((t) => t.id !== myTeamId),
+    [state.teams, myTeamId],
+  );
+
+  const myTeamPanelIndex = 1;
+
+  const scrollToPanel = useCallback(
+    (index: number) => {
+      const container = scrollRef.current;
+      if (!container) return;
+      const panel = container.children[index] as HTMLElement | undefined;
+      if (!panel) return;
+      container.scrollTo({ left: panel.offsetLeft, behavior: "smooth" });
+    },
+    [],
+  );
+
+  const openMyTeam = useCallback(() => {
+    if (myTeam) scrollToPanel(myTeamPanelIndex);
+  }, [myTeam, scrollToPanel]);
+
+  useEffect(() => {
+    if (onOpenTeamRef) onOpenTeamRef.current = openMyTeam;
+    return () => {
+      if (onOpenTeamRef) onOpenTeamRef.current = null;
+    };
+  }, [onOpenTeamRef, openMyTeam]);
+
+  useEffect(() => {
+    const canPick = state.isCaptainTurn && state.draft.isLive;
+    if (canPick && !wasCaptainTurnRef.current) {
+      scrollToPanel(0);
+      setDrawerOpen(false);
+    }
+    wasCaptainTurnRef.current = canPick;
+  }, [state.isCaptainTurn, state.draft.isLive, scrollToPanel]);
+
+  return (
+    <div className="flex h-[100dvh] flex-col overflow-hidden">
+      <MobilePickBar
+        state={state}
+        drawerOpen={drawerOpen}
+        onToggleDrawer={() => setDrawerOpen((open) => !open)}
+        onCloseDrawer={() => setDrawerOpen(false)}
+      />
+
+      <div
+        ref={scrollRef}
+        className="flex min-h-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-auto overflow-y-hidden px-3 scroll-px-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      >
+        <div
+          className={`${carouselPanelClass} overflow-y-auto rounded-lg`}
+          style={{ flex: `0 0 ${CAROUSEL_PANEL_WIDTH}` }}
+        >
+          {children}
+        </div>
+        {myTeam ? (
+          <MobileTeamPanel
+            team={myTeam}
+            quotasEnabled={state.draft.quotasEnabled}
+            showRanks={showRanks}
+            isOnClock={myTeam.id === state.onClockTeamId}
+          />
+        ) : null}
+        {otherTeams.map((team) => (
+          <MobileTeamPanel
+            key={team.id}
+            team={team}
+            quotasEnabled={state.draft.quotasEnabled}
+            showRanks={showRanks}
+            isOnClock={team.id === state.onClockTeamId}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

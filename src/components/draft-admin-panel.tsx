@@ -1,0 +1,185 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { DraftBoardView, type DraftBoardStatus } from "@/components/draft-board-view";
+
+type Props = {
+  draftId: string;
+  onOpenSettings?: () => void;
+};
+
+export function DraftAdminPanel({ draftId, onOpenSettings }: Props) {
+  const [isLive, setIsLive] = useState(false);
+  const [status, setStatus] = useState("setup");
+  const [boardStatus, setBoardStatus] = useState<DraftBoardStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [refreshSignal, setRefreshSignal] = useState(0);
+
+  const handleBoardStatusChange = useCallback((next: DraftBoardStatus) => {
+    setBoardStatus(next);
+    setIsLive(next.isLive);
+    setStatus(next.draftStatus);
+  }, []);
+
+  const loadMeta = useCallback(async () => {
+    const res = await fetch(`/api/admin/drafts/${draftId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setIsLive(data.draft.isLive);
+    setStatus(data.draft.status);
+  }, [draftId]);
+
+  useEffect(() => {
+    void loadMeta();
+  }, [loadMeta]);
+
+  function bumpBoardRefresh() {
+    setRefreshSignal((value) => value + 1);
+  }
+
+  async function toggleLive() {
+    const next = !isLive;
+    setBusy(true);
+    setMessage(null);
+    const res = await fetch(`/api/admin/drafts/${draftId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isLive: next }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setMessage("Could not update live status");
+      return;
+    }
+    await loadMeta();
+    bumpBoardRefresh();
+  }
+
+  async function undoPick() {
+    setBusy(true);
+    setMessage(null);
+    const res = await fetch(`/api/admin/drafts/${draftId}/undo`, { method: "POST" });
+    setBusy(false);
+    if (!res.ok) {
+      setMessage("Nothing to undo");
+      return;
+    }
+    setMessage("Undid last pick");
+    bumpBoardRefresh();
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded border border-zinc-200 bg-zinc-50 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={busy || status === "complete"}
+              className={
+                isLive
+                  ? "inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-50"
+                  : "rounded bg-green-700 px-3 py-2 text-sm text-white disabled:opacity-50"
+              }
+              onClick={toggleLive}
+            >
+              {isLive ? (
+                <>
+                  <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="5" width="4" height="14" rx="1" />
+                    <rect x="14" y="5" width="4" height="14" rx="1" />
+                  </svg>
+                  Pause draft
+                </>
+              ) : (
+                "Go live"
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-50"
+              onClick={undoPick}
+            >
+              <svg
+                aria-hidden="true"
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 7 4 12l5 5" />
+                <path d="M20 12H4" />
+              </svg>
+              Undo last pick
+            </button>
+            {onOpenSettings ? (
+              <button
+                type="button"
+                className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100"
+                onClick={onOpenSettings}
+              >
+                Draft settings
+              </button>
+            ) : null}
+            <Link
+              href={`/draft/${draftId}/board`}
+              className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100"
+              target="_blank"
+            >
+              Open TV board
+            </Link>
+            <Link
+              href={`/draft/${draftId}/pick`}
+              className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100"
+              target="_blank"
+            >
+              Captain view
+            </Link>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
+            {boardStatus ? (
+              <>
+                {boardStatus.isLive ? (
+                  <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-900">
+                    Live
+                  </span>
+                ) : (
+                  <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+                    Not live
+                  </span>
+                )}
+                <span>
+                  Pick {Math.min(boardStatus.currentPickNumber, boardStatus.totalPicks)} /{" "}
+                  {boardStatus.totalPicks}
+                  {boardStatus.onClockCaptainName
+                    ? ` — ${boardStatus.onClockCaptainName}'s turn`
+                    : boardStatus.draftStatus === "complete"
+                      ? " — Complete"
+                      : ""}
+                </span>
+              </>
+            ) : (
+              <span>
+                Status: {status} · {isLive ? "Live" : "Not live"}
+              </span>
+            )}
+          </div>
+        </div>
+        {message ? <p className="mt-2 text-sm text-blue-700">{message}</p> : null}
+      </div>
+
+      <DraftBoardView
+        draftId={draftId}
+        mode="admin"
+        refreshSignal={refreshSignal}
+        onStatusChange={handleBoardStatusChange}
+      />
+    </div>
+  );
+}

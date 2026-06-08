@@ -3,7 +3,7 @@ import { AppNav } from "@/components/app-nav";
 import { BackendSettingsForm } from "@/components/backend-settings-form";
 import { ScoringWindowForm } from "@/components/scoring-window-form";
 import { resolveSession } from "@/lib/auth";
-import { getNavLinks } from "@/lib/nav";
+import { getAppNavData } from "@/lib/nav";
 import { isSuperadmin } from "@/lib/rbac";
 import {
   SCORING_OPEN_KEY,
@@ -34,10 +34,11 @@ export default async function BackendSettingsPage() {
       getStringSetting(RATE_PAGE_BUTTON_URL_KEY, ""),
     ]);
   const closeAtDisplay = formatCloseAtDisplay(closeAtIso);
+  const nav = await getAppNavData(session);
 
   return (
     <main className="min-w-0 overflow-x-hidden bg-white text-zinc-900">
-      <AppNav links={getNavLinks(session)} displayName={session.name || session.email} />
+      <AppNav {...nav} />
       <section className="mx-auto min-w-0 max-w-7xl space-y-8 px-3 py-6 sm:px-4">
         <h1 className="text-2xl font-semibold">Settings</h1>
 

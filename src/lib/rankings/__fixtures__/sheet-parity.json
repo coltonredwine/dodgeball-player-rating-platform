@@ -1,0 +1,56 @@
+[
+  {
+    "name": "Lexi Adsit",
+    "metrics": {
+      "power": 2,
+      "accuracy": 2,
+      "intimidation": 2,
+      "catching": 3.5,
+      "evasion": 3,
+      "nerve": 2.5
+    },
+    "expected": {
+      "displayOffensive": 2,
+      "displayDefensive": 3.32,
+      "displayPsych": 2.33,
+      "overall": 0.41,
+      "rank": 1
+    }
+  },
+  {
+    "name": "Patrick Barna",
+    "metrics": {
+      "power": 5.25,
+      "accuracy": 5.75,
+      "intimidation": 4.75,
+      "catching": 4.75,
+      "evasion": 4.25,
+      "nerve": 5.25
+    },
+    "expected": {
+      "displayOffensive": 5.58,
+      "displayDefensive": 4.57,
+      "displayPsych": 5.08,
+      "overall": 0.93,
+      "rank": 4
+    }
+  },
+  {
+    "name": "Stephen Cantu",
+    "metrics": {
+      "power": 4.75,
+      "accuracy": 3.75,
+      "intimidation": 3.5,
+      "catching": 4,
+      "evasion": 3.75,
+      "nerve": 4
+    },
+    "expected": {
+      "displayOffensive": 4.1,
+      "displayDefensive": 3.91,
+      "displayPsych": 3.83,
+      "overall": 0.69,
+      "rank": 3
+    }
+  }
+]

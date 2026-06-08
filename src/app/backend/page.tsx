@@ -5,6 +5,7 @@ import { CompletionView } from "@/components/completion-view";
 import { CsvImportPanel } from "@/components/csv-import-panel";
 import { PlayersEditor } from "@/components/players-editor";
 import { RatersEditor } from "@/components/raters-editor";
+import { ScrollableListCard } from "@/components/scrollable-list-card";
 import { resolveSession } from "@/lib/auth";
 import { formatProgressLabel, getCompletionCategory, getRaterProgress, tallyCompletionCategories } from "@/lib/completion";
 import {
@@ -12,7 +13,7 @@ import {
   syncCollectedSubmissionsForNewPlayers,
 } from "@/lib/collection";
 import { prisma } from "@/lib/db";
-import { getNavLinks } from "@/lib/nav";
+import { getAppNavData } from "@/lib/nav";
 import { isAdminLike, isBackendUser, isSuperadmin } from "@/lib/rbac";
 
 export default async function BackendPage({
@@ -77,13 +78,21 @@ export default async function BackendPage({
 
   const tally = tallyCompletionCategories(completionRows.map((row) => row.category));
 
+  const nav = await getAppNavData(session);
+
   return (
     <main className="min-w-0 overflow-x-hidden bg-white text-zinc-900">
-      <AppNav links={getNavLinks(session)} displayName={session.name || session.email} />
+      <AppNav {...nav} />
       <section className="mx-auto min-w-0 max-w-7xl space-y-8 px-3 py-6 sm:px-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold">Admin</h1>
           <div className="flex flex-wrap gap-2">
+            <Link
+              href="/backend/drafts"
+              className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+            >
+              Drafts
+            </Link>
             <Link
               className="rounded border border-zinc-300 px-3 py-1 text-sm"
               href="/api/admin/export/all-raters"
@@ -144,9 +153,9 @@ export default async function BackendPage({
                 ) : null}
               </div>
             ) : (
-              <div className="mt-2 min-w-0 overflow-x-auto rounded border border-zinc-200">
+              <ScrollableListCard title="Players">
                 <table className="w-full border-collapse text-sm">
-                <thead className="bg-zinc-100">
+                <thead className="sticky top-0 z-10 bg-zinc-100">
                   <tr>
                     <th className="px-3 py-2 text-left">First</th>
                     <th className="px-3 py-2 text-left">Last</th>
@@ -165,7 +174,7 @@ export default async function BackendPage({
                   ))}
                 </tbody>
                 </table>
-              </div>
+              </ScrollableListCard>
             )}
           </div>
 

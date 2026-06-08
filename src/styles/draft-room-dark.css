@@ -1,0 +1,118 @@
+/**
+ * Material Design 2 dark theme — blue-tinted surfaces.
+ * @see https://m2.material.io/design/color/dark-theme.html#properties
+ *
+ * - 0dp background: desaturated dark blue (not pure black)
+ * - Elevated surfaces: stepped overlays toward lighter blue-grays
+ * - Text: high / medium / disabled emphasis via opacity
+ * - State: low-opacity overlays (hover, selection)
+ */
+.draft-room {
+  color-scheme: dark;
+
+  /* 0dp — page background */
+  --draft-bg: #0d1520;
+
+  /* 1dp–4dp surfaces (MD2 elevation + blue cast) */
+  --draft-surface-1: #121b29;
+  --draft-surface-2: #162030;
+  --draft-surface-3: #1a2535;
+  --draft-surface-4: #1e2a3c;
+
+  --draft-divider: rgba(147, 168, 191, 0.14);
+  --draft-text-high: rgba(227, 234, 242, 0.87);
+  --draft-text-medium: rgba(168, 184, 200, 0.6);
+  --draft-text-disabled: rgba(168, 184, 200, 0.38);
+  --draft-hover: rgba(186, 204, 224, 0.07);
+  --draft-selected: rgba(96, 148, 220, 0.16);
+  --draft-rank-glyph: #c5d4e4;
+  --draft-shadow: rgba(0, 8, 20, 0.45);
+
+  background-color: var(--draft-bg);
+  color: var(--draft-text-high);
+}
+
+@keyframes draft-on-clock-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--on-clock-color, #6090c0) 55%, transparent),
+      0 0 12px 2px color-mix(in srgb, var(--on-clock-color, #6090c0) 25%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--on-clock-color, #6090c0) 75%, transparent),
+      0 0 28px 6px color-mix(in srgb, var(--on-clock-color, #6090c0) 45%, transparent);
+  }
+}
+
+.draft-on-clock-glow {
+  animation: draft-on-clock-glow 2.2s ease-in-out infinite;
+  background-color: color-mix(in srgb, var(--on-clock-color, #6090c0) 14%, var(--draft-surface-2));
+}
+
+@keyframes draft-captain-turn-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--captain-turn-color, #d4af37) 55%, transparent),
+      0 0 12px 2px color-mix(in srgb, var(--captain-turn-color, #d4af37) 25%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--captain-turn-color, #d4af37) 75%, transparent),
+      0 0 28px 6px color-mix(in srgb, var(--captain-turn-color, #d4af37) 45%, transparent);
+  }
+}
+
+.draft-captain-turn-glow {
+  animation: draft-captain-turn-glow 2.2s ease-in-out infinite;
+  background-color: color-mix(in srgb, var(--captain-turn-color, #d4af37) 14%, var(--draft-surface-3));
+}
+
+@keyframes draft-captain-viewport-glow {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 2px color-mix(in srgb, var(--captain-turn-color, #d4af37) 50%, transparent),
+      0 0 14px 2px color-mix(in srgb, var(--captain-turn-color, #d4af37) 22%, transparent);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 3px color-mix(in srgb, var(--captain-turn-color, #d4af37) 85%, transparent),
+      0 0 36px 10px color-mix(in srgb, var(--captain-turn-color, #d4af37) 42%, transparent);
+  }
+}
+
+.draft-captain-viewport-glow::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  animation: draft-captain-viewport-glow 2.2s ease-in-out infinite;
+}
+
+.draft-pick-clock-blink {
+  animation: draft-pick-clock-blink 1s step-end infinite;
+}
+
+@keyframes draft-pick-clock-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.2;
+  }
+}
+
+.draft-player-inactive {
+  opacity: 0.32;
+  filter: saturate(0.35);
+}
+
+.draft-player-inactive td {
+  color: var(--draft-text-disabled);
+}

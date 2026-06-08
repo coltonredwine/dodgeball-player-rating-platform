@@ -1,9 +1,9 @@
 export const METRIC_FIELDS = [
   "power",
   "accuracy",
-  "intimidation",
   "catching",
   "evasion",
+  "intimidation",
   "nerve",
 ] as const;
 
