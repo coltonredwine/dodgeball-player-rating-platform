@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireAdmin, requireBackendUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
 import { buildDraftState } from "@/lib/draft/service";
 import { sortDraftPlayers } from "@/lib/draft/sort";
@@ -9,7 +9,7 @@ import { MetricField } from "@/lib/constants";
 type Params = { params: Promise<{ draftId: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
-  const auth = await requireAdmin();
+  const auth = await requireBackendUser();
   if ("error" in auth) return auth.error;
 
   const { draftId } = await params;

@@ -5,8 +5,16 @@ export function isBackendUser(session: AppSession) {
   return session.role === "manager" || session.role === "admin" || session.role === "superadmin";
 }
 
+export function isManager(session: AppSession) {
+  return session.role === "manager";
+}
+
 export function isAdminLike(session: AppSession) {
   return session.role === "admin" || session.role === "superadmin";
+}
+
+export function canEditDrafts(session: AppSession) {
+  return isAdminLike(session);
 }
 
 export function isSuperadmin(session: AppSession) {

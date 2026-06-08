@@ -9,18 +9,19 @@ import { DraftSettingsModal } from "@/components/draft-settings-modal";
 type Props = {
   draftId: string;
   draftName: string;
+  readOnly?: boolean;
 };
 
-export function DraftPageClient({ draftId, draftName }: Props) {
+export function DraftPageClient({ draftId, draftName, readOnly = false }: Props) {
   const searchParams = useSearchParams();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    if (searchParams.get("settings") === "1") {
+    if (!readOnly && searchParams.get("settings") === "1") {
       setSettingsOpen(true);
     }
-  }, [searchParams]);
+  }, [readOnly, searchParams]);
 
   function handleSaved() {
     setRefreshKey((value) => value + 1);
@@ -33,26 +34,31 @@ export function DraftPageClient({ draftId, draftName }: Props) {
       </Link>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">{draftName}</h1>
-        <button
-          type="button"
-          className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
-          onClick={() => setSettingsOpen(true)}
-        >
-          Draft settings
-        </button>
+        {!readOnly ? (
+          <button
+            type="button"
+            className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+            onClick={() => setSettingsOpen(true)}
+          >
+            Draft settings
+          </button>
+        ) : null}
       </div>
       <DraftDashboardTabs
         key={refreshKey}
         draftId={draftId}
-        onOpenSettings={() => setSettingsOpen(true)}
+        readOnly={readOnly}
+        onOpenSettings={readOnly ? undefined : () => setSettingsOpen(true)}
       />
-      <DraftSettingsModal
-        open={settingsOpen}
-        draftId={draftId}
-        draftName={draftName}
-        onClose={() => setSettingsOpen(false)}
-        onSaved={handleSaved}
-      />
+      {!readOnly ? (
+        <DraftSettingsModal
+          open={settingsOpen}
+          draftId={draftId}
+          draftName={draftName}
+          onClose={() => setSettingsOpen(false)}
+          onSaved={handleSaved}
+        />
+      ) : null}
     </>
   );
 }

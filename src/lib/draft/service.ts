@@ -648,3 +648,11 @@ export async function getCaptainAssignmentsForRater(raterId: string) {
     orderBy: { draft: { createdAt: "desc" } },
   });
 }
+
+export function isDraftOpen(draft: { status: string }) {
+  return draft.status !== "complete";
+}
+
+export async function countOpenDrafts() {
+  return prisma.draft.count({ where: { status: { not: "complete" } } });
+}

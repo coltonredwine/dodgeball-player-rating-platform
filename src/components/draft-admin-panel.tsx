@@ -6,10 +6,11 @@ import { DraftBoardView, type DraftBoardStatus } from "@/components/draft-board-
 
 type Props = {
   draftId: string;
+  readOnly?: boolean;
   onOpenSettings?: () => void;
 };
 
-export function DraftAdminPanel({ draftId, onOpenSettings }: Props) {
+export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: Props) {
   const [isLive, setIsLive] = useState(false);
   const [status, setStatus] = useState("setup");
   const [boardStatus, setBoardStatus] = useState<DraftBoardStatus | null>(null);
@@ -75,6 +76,8 @@ export function DraftAdminPanel({ draftId, onOpenSettings }: Props) {
       <div className="rounded border border-zinc-200 bg-zinc-50 px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
+            {!readOnly ? (
+              <>
             <button
               type="button"
               disabled={busy || status === "complete"}
@@ -127,6 +130,8 @@ export function DraftAdminPanel({ draftId, onOpenSettings }: Props) {
                 Draft settings
               </button>
             ) : null}
+              </>
+            ) : null}
             <Link
               href={`/draft/${draftId}/board`}
               className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100"
@@ -134,13 +139,15 @@ export function DraftAdminPanel({ draftId, onOpenSettings }: Props) {
             >
               Open TV board
             </Link>
-            <Link
-              href={`/draft/${draftId}/pick`}
-              className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100"
-              target="_blank"
-            >
-              Captain view
-            </Link>
+            {!readOnly ? (
+              <Link
+                href={`/draft/${draftId}/pick`}
+                className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100"
+                target="_blank"
+              >
+                Captain view
+              </Link>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
             {boardStatus ? (
@@ -177,6 +184,7 @@ export function DraftAdminPanel({ draftId, onOpenSettings }: Props) {
       <DraftBoardView
         draftId={draftId}
         mode="admin"
+        adminReadOnly={readOnly}
         refreshSignal={refreshSignal}
         onStatusChange={handleBoardStatusChange}
       />

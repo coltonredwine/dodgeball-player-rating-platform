@@ -1,6 +1,9 @@
 import { AppSession } from "@/lib/auth";
-import { getCaptainAssignmentsForRater } from "@/lib/draft/service";
-import { isBackendUser } from "@/lib/rbac";
+import {
+  countOpenDrafts,
+  getCaptainAssignmentsForRater,
+} from "@/lib/draft/service";
+import { isAdminLike, isBackendUser, isManager } from "@/lib/rbac";
 import { getSeasonLabel } from "@/lib/settings";
 
 export type NavLink = {
@@ -26,21 +29,31 @@ export async function getAppNavData(session: AppSession): Promise<AppNavData> {
   const leagueLabel = await getSeasonLabel();
   const leagues: LeagueOption[] = [{ label: leagueLabel }];
 
-  let draftHref = "/draft";
-  if (session.raterId) {
+  const primaryLinks: NavLink[] = [{ href: "/rate", label: "Rate" }];
+
+  if (isAdminLike(session)) {
+    primaryLinks.push({ href: "/backend/drafts", label: "Draft" });
+  } else if (isManager(session)) {
+    const openCount = await countOpenDrafts();
+    if (openCount > 0) {
+      primaryLinks.push({ href: "/backend/drafts", label: "Draft" });
+    }
+  } else if (session.raterId) {
     const assignments = await getCaptainAssignmentsForRater(session.raterId);
     if (assignments.length === 1) {
-      draftHref = `/draft/${assignments[0].draftId}/pick`;
+      primaryLinks.push({
+        href: `/draft/${assignments[0].draftId}/pick`,
+        label: "Draft",
+      });
+    } else if (assignments.length > 1) {
+      primaryLinks.push({ href: "/draft", label: "Draft" });
     }
   } else if (isBackendUser(session)) {
-    draftHref = "/backend/drafts";
+    primaryLinks.push({ href: "/backend/drafts", label: "Draft" });
   }
 
   return {
-    primaryLinks: [
-      { href: "/rate", label: "Rate" },
-      { href: draftHref, label: "Draft" },
-    ],
+    primaryLinks,
     showAdmin: isBackendUser(session),
     adminHref: "/backend",
     displayName: session.name || session.email,

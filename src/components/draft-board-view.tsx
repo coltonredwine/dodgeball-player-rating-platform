@@ -97,6 +97,7 @@ type Props = {
   draftId: string;
   mode: "board" | "admin" | "captain";
   captainTeamId?: string | null;
+  adminReadOnly?: boolean;
   refreshSignal?: number;
   onStatusChange?: (status: DraftBoardStatus) => void;
 };
@@ -112,6 +113,7 @@ function AdminPlayerProfile({
   canDraft,
   draftBlockedReason,
   quotaForbidden,
+  viewOnly = false,
 }: {
   player: UndraftedPlayer;
   teams: TeamState[];
@@ -123,6 +125,7 @@ function AdminPlayerProfile({
   canDraft: boolean;
   draftBlockedReason: string | null;
   quotaForbidden: boolean;
+  viewOnly?: boolean;
 }) {
   const scores = player.scores;
   if (!scores) {
@@ -168,40 +171,42 @@ function AdminPlayerProfile({
         </div>
       </div>
 
-      <div className="space-y-2 border-t border-zinc-200 pt-4">
-        <label className="flex flex-col gap-1 text-sm">
-          Draft to team
-          <select
-            className="rounded border px-2 py-1"
-            value={draftTeamId}
-            onChange={(event) => onDraftTeamIdChange(event.target.value)}
+      {!viewOnly ? (
+        <div className="space-y-2 border-t border-zinc-200 pt-4">
+          <label className="flex flex-col gap-1 text-sm">
+            Draft to team
+            <select
+              className="rounded border px-2 py-1"
+              value={draftTeamId}
+              onChange={(event) => onDraftTeamIdChange(event.target.value)}
+            >
+              <option value="">Select captain…</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id} disabled={team.remainingPicks <= 0}>
+                  {team.captainName}
+                  {team.remainingPicks <= 0 ? " (roster full)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          {draftBlockedReason ? <p className="text-xs text-zinc-500">{draftBlockedReason}</p> : null}
+          {quotaForbidden ? (
+            <p className="text-xs text-red-700">
+              This pick is blocked by rank quotas for the on-clock captain. Confirming will force the
+              pick anyway.
+            </p>
+          ) : null}
+          {pickError ? <p className="text-sm text-red-700">{pickError}</p> : null}
+          <button
+            type="button"
+            disabled={!canDraft || pickBusy}
+            className="w-full rounded bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            onClick={onDraft}
           >
-            <option value="">Select captain…</option>
-            {teams.map((team) => (
-              <option key={team.id} value={team.id} disabled={team.remainingPicks <= 0}>
-                {team.captainName}
-                {team.remainingPicks <= 0 ? " (roster full)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        {draftBlockedReason ? <p className="text-xs text-zinc-500">{draftBlockedReason}</p> : null}
-        {quotaForbidden ? (
-          <p className="text-xs text-red-700">
-            This pick is blocked by rank quotas for the on-clock captain. Confirming will force the
-            pick anyway.
-          </p>
-        ) : null}
-        {pickError ? <p className="text-sm text-red-700">{pickError}</p> : null}
-        <button
-          type="button"
-          disabled={!canDraft || pickBusy}
-          className="w-full rounded bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-          onClick={onDraft}
-        >
-          {pickBusy ? "Drafting…" : "Draft to team"}
-        </button>
-      </div>
+            {pickBusy ? "Drafting…" : "Draft to team"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -210,6 +215,7 @@ export function DraftBoardView({
   draftId,
   mode,
   captainTeamId,
+  adminReadOnly = false,
   refreshSignal = 0,
   onStatusChange,
 }: Props) {
@@ -294,6 +300,7 @@ export function DraftBoardView({
   const draftTeam = state?.teams.find((team) => team.id === draftTeamId);
   const canDraft =
     mode === "admin" &&
+    !adminReadOnly &&
     !!selectedPlayer &&
     !!state?.draft.isLive &&
     state.draft.status !== "complete" &&
@@ -504,7 +511,7 @@ export function DraftBoardView({
         : !inactive && !quotaForbidden
           ? theme.hoverRow
           : "",
-      mode === "admin" ? "cursor-pointer" : "",
+      mode === "admin" && !adminReadOnly ? "cursor-pointer" : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -927,11 +934,14 @@ export function DraftBoardView({
             canDraft={canDraft}
             draftBlockedReason={draftBlockedReason}
             quotaForbidden={isQuotaForbiddenForOnClock(selectedPlayer.playerId)}
+            viewOnly={adminReadOnly}
           />
         </div>
       ) : (
         <p className="mt-3 text-sm text-zinc-500">
-          Select a player from the list to view their profile and draft them to a team.
+          {adminReadOnly
+            ? "Select a player from the list to view their profile."
+            : "Select a player from the list to view their profile and draft them to a team."}
         </p>
       )}
     </section>

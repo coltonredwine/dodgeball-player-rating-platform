@@ -6,10 +6,11 @@ import { DraftScoresPanel } from "@/components/draft-scores-panel";
 
 type Props = {
   draftId: string;
+  readOnly?: boolean;
   onOpenSettings?: () => void;
 };
 
-export function DraftDashboardTabs({ draftId, onOpenSettings }: Props) {
+export function DraftDashboardTabs({ draftId, readOnly = false, onOpenSettings }: Props) {
   const [tab, setTab] = useState<"live" | "scores">("live");
 
   return (
@@ -39,9 +40,9 @@ export function DraftDashboardTabs({ draftId, onOpenSettings }: Props) {
         </button>
       </div>
       {tab === "live" ? (
-        <DraftAdminPanel draftId={draftId} onOpenSettings={onOpenSettings} />
+        <DraftAdminPanel draftId={draftId} readOnly={readOnly} onOpenSettings={onOpenSettings} />
       ) : (
-        <DraftScoresPanel draftId={draftId} />
+        <DraftScoresPanel draftId={draftId} readOnly={readOnly} />
       )}
     </div>
   );

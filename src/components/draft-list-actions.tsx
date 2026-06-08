@@ -6,17 +6,20 @@ import { DraftSettingsTrigger } from "@/components/draft-settings-trigger";
 type Props = {
   draftId: string;
   draftName: string;
+  readOnly?: boolean;
 };
 
-export function DraftListActions({ draftId, draftName }: Props) {
+export function DraftListActions({ draftId, draftName, readOnly = false }: Props) {
   return (
     <div className="flex gap-2 text-sm">
-      <DraftSettingsTrigger
-        draftId={draftId}
-        draftName={draftName}
-        className="underline"
-        label="Settings"
-      />
+      {!readOnly ? (
+        <DraftSettingsTrigger
+          draftId={draftId}
+          draftName={draftName}
+          className="underline"
+          label="Settings"
+        />
+      ) : null}
       <Link className="underline" href={`/backend/drafts/${draftId}`}>
         Open
       </Link>

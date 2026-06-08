@@ -42,7 +42,13 @@ type PlayerDetail = {
   scores: PlayerScore["scores"];
 };
 
-export function DraftScoresPanel({ draftId }: { draftId: string }) {
+export function DraftScoresPanel({
+  draftId,
+  readOnly = false,
+}: {
+  draftId: string;
+  readOnly?: boolean;
+}) {
   const [players, setPlayers] = useState<PlayerScore[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [playerSearch, setPlayerSearch] = useState("");
@@ -196,6 +202,7 @@ export function DraftScoresPanel({ draftId }: { draftId: string }) {
                         <input
                           type="checkbox"
                           checked={r.excluded}
+                          disabled={readOnly}
                           onChange={(e) => toggleExclusion(r.raterId, e.target.checked)}
                         />
                       </td>
@@ -211,39 +218,41 @@ export function DraftScoresPanel({ draftId }: { draftId: string }) {
               </ScrollableListCard>
             </div>
 
-            <div>
-              <h4 className="text-sm font-medium">Metric overrides</h4>
-              <div className="mt-2 space-y-2">
-                {METRIC_FIELDS.map((metric) => {
-                  const overridden = detail.overrides[metric] != null;
-                  const baseAverage = detail.averages[metric];
-                  return (
-                    <div key={metric} className="flex flex-wrap items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={overridden}
-                        onChange={(e) => {
-                          if (e.target.checked) setOverride(metric, baseAverage);
-                          else setOverride(metric, null);
-                        }}
-                        aria-label={`Override ${metric}`}
-                      />
-                      <span className="w-24 capitalize">{metric}</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={1}
-                        max={7}
-                        disabled={!overridden}
-                        className="w-20 rounded border px-2 py-1 disabled:bg-zinc-100 disabled:text-zinc-500"
-                        value={overridden ? detail.overrides[metric] : baseAverage}
-                        onChange={(e) => setOverride(metric, Number(e.target.value))}
-                      />
-                    </div>
-                  );
-                })}
+            {!readOnly ? (
+              <div>
+                <h4 className="text-sm font-medium">Metric overrides</h4>
+                <div className="mt-2 space-y-2">
+                  {METRIC_FIELDS.map((metric) => {
+                    const overridden = detail.overrides[metric] != null;
+                    const baseAverage = detail.averages[metric];
+                    return (
+                      <div key={metric} className="flex flex-wrap items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={overridden}
+                          onChange={(e) => {
+                            if (e.target.checked) setOverride(metric, baseAverage);
+                            else setOverride(metric, null);
+                          }}
+                          aria-label={`Override ${metric}`}
+                        />
+                        <span className="w-24 capitalize">{metric}</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min={1}
+                          max={7}
+                          disabled={!overridden}
+                          className="w-20 rounded border px-2 py-1 disabled:bg-zinc-100 disabled:text-zinc-500"
+                          value={overridden ? detail.overrides[metric] : baseAverage}
+                          onChange={(e) => setOverride(metric, Number(e.target.value))}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
         )}
       </div>
