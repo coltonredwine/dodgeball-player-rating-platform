@@ -52,6 +52,7 @@ type TeamRow = {
   id: string;
   captainName: string;
   color: string;
+  pickOrder: number;
   remainingPicks: number;
   roster: Array<{
     playerId: string;

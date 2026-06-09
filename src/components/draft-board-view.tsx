@@ -42,6 +42,7 @@ type TeamState = {
   id: string;
   captainName: string;
   color: string;
+  pickOrder: number;
   remainingPicks: number;
   roster: Array<{
     playerId: string;
@@ -535,6 +536,7 @@ export function DraftBoardView({
         state={state}
         visibility={publicBoardVisibility(state.draft.displaySettings)}
         linkPlayerProfiles={false}
+        showTeamSortToggle
       />
     );
   }
