@@ -80,6 +80,7 @@ export function redactPublicDraftState(
       stats: {
         ...team.stats,
         avgRank: settings.publicShowRanks ? team.stats.avgRank : null,
+        avgOverall: team.stats.avgOverall,
         avgOffensive: settings.publicShowSkillRatings ? team.stats.avgOffensive : null,
         avgDefensive: settings.publicShowSkillRatings ? team.stats.avgDefensive : null,
         offensiveCount: settings.publicShowSkillRatings ? team.stats.offensiveCount : 0,

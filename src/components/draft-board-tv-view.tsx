@@ -107,6 +107,7 @@ type TeamState = {
   targetRosterSize: number;
   stats: {
     avgRank: number | null;
+    avgOverall: number | null;
     avgOffensive: number | null;
     avgDefensive: number | null;
     offensiveCount: number;
@@ -777,12 +778,9 @@ export function DraftBoardTvView({
 
   const pendingTrades = state.pendingTrades ?? captain?.trade?.pendingTrades ?? [];
 
-  const effectiveTeamSort: DraftTeamSortMode =
-    teamSortMode === "avgRank" && showRanks ? "avgRank" : "pickOrder";
-
   const displayTeams = useMemo(
-    () => sortDraftTeams(state.teams, effectiveTeamSort),
-    [state.teams, effectiveTeamSort],
+    () => sortDraftTeams(state.teams, teamSortMode),
+    [state.teams, teamSortMode],
   );
 
   const upcomingQueue = state.turnQueue.slice(1);

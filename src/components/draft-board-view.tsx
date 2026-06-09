@@ -56,6 +56,7 @@ type TeamState = {
   targetRosterSize: number;
   stats: {
     avgRank: number | null;
+    avgOverall: number | null;
     avgOffensive: number | null;
     avgDefensive: number | null;
     offensiveCount: number;

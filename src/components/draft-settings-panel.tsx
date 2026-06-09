@@ -123,7 +123,7 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
           publicBoardEnabled,
           publicShowRanks,
           publicShowSkillRatings,
-          publicTeamSort: publicShowRanks ? publicTeamSort : "pickOrder",
+          publicTeamSort,
         },
       }),
     });
@@ -265,11 +265,7 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
               type="checkbox"
               checked={publicShowRanks}
               disabled={!publicBoardEnabled}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setPublicShowRanks(checked);
-                if (!checked) setPublicTeamSort("pickOrder");
-              }}
+              onChange={(e) => setPublicShowRanks(e.target.checked)}
             />
             Show ranks and rank quotas
           </label>
@@ -298,11 +294,13 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
                 type="radio"
                 name="publicTeamSort"
                 checked={publicTeamSort === "avgRank"}
-                disabled={!publicShowRanks}
                 onChange={() => setPublicTeamSort("avgRank")}
               />
-              Average roster rank
+              Average CALC
             </label>
+            <p className="text-xs text-zinc-500">
+              Average CALC sorts by roster strength without requiring ranks to be visible.
+            </p>
           </fieldset>
         </section>
 

@@ -262,11 +262,15 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
       color: team.color,
       roster,
       stats: computeTeamStats(
-        roster.map((r) => ({
-          rank: r.rank,
-          displayOffensive: r.displayOffensive,
-          displayDefensive: r.displayDefensive,
-        })),
+        roster.map((r) => {
+          const player = playerMap.get(r.playerId);
+          return {
+            rank: r.rank,
+            overall: player?.scores?.overall ?? 0,
+            displayOffensive: r.displayOffensive,
+            displayDefensive: r.displayDefensive,
+          };
+        }),
       ),
       rankCounts,
       quotaNeed,
