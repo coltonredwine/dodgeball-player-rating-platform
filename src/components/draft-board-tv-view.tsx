@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { LeaningIcon } from "@/components/player-leaning-icon";
 import { PlayerAvatar, TeamAvatar } from "@/components/player-avatar";
 import { PickClockRing } from "@/components/pick-clock-ring";
@@ -16,7 +16,6 @@ import {
 } from "@/components/captain-pick-controls";
 import { filterPlayersByQuery } from "@/lib/player-search";
 import { CaptainPoolSortControl } from "@/components/captain-pool-sort-control";
-import { DraftTeamSortControl } from "@/components/draft-team-sort-control";
 import { PlayerPoolRankSections } from "@/components/player-pool-rank-sections";
 import {
   PendingTradeProposalCard,
@@ -136,6 +135,7 @@ type DraftState = {
     displaySettings: {
       hideRanksOnCompleteTeams: boolean;
       showRanksOnCaptainView?: boolean;
+      publicTeamSort?: DraftTeamSortMode;
     };
   };
   currentPickNumber: number;
@@ -164,7 +164,7 @@ type Props = {
   captain?: CaptainTvControls;
   visibility?: PublicBoardVisibility;
   linkPlayerProfiles?: boolean;
-  showTeamSortToggle?: boolean;
+  teamSortMode?: DraftTeamSortMode;
 };
 
 const TV_PLAYER_AVATAR_SIZE = 36;
@@ -728,11 +728,10 @@ export function DraftBoardTvView({
   captain,
   visibility = DEFAULT_VISIBILITY,
   linkPlayerProfiles = true,
-  showTeamSortToggle = false,
+  teamSortMode = "pickOrder",
 }: Props) {
   const [search, setSearch] = useState("");
   const [poolSort, setPoolSort] = useState<CaptainPoolSortField>(DEFAULT_CAPTAIN_POOL_SORT);
-  const [teamSort, setTeamSort] = useState<DraftTeamSortMode>("pickOrder");
   const isCaptainView = captain != null;
   const showRanks = visibility.showRanks;
   const showSkillRatings = visibility.showSkillRatings;
@@ -778,16 +777,13 @@ export function DraftBoardTvView({
 
   const pendingTrades = state.pendingTrades ?? captain?.trade?.pendingTrades ?? [];
 
-  const displayTeams = useMemo(
-    () => sortDraftTeams(state.teams, teamSort),
-    [state.teams, teamSort],
-  );
+  const effectiveTeamSort: DraftTeamSortMode =
+    teamSortMode === "avgRank" && showRanks ? "avgRank" : "pickOrder";
 
-  useEffect(() => {
-    if (!showRanks && teamSort === "avgRank") {
-      setTeamSort("pickOrder");
-    }
-  }, [showRanks, teamSort]);
+  const displayTeams = useMemo(
+    () => sortDraftTeams(state.teams, effectiveTeamSort),
+    [state.teams, effectiveTeamSort],
+  );
 
   const upcomingQueue = state.turnQueue.slice(1);
   const lastPick = state.pickHistory.at(-1) ?? null;
@@ -892,14 +888,6 @@ export function DraftBoardTvView({
                 Pick {Math.min(state.picksMade + (state.onClockTeamId ? 1 : 0), state.totalPicks)} / {state.totalPicks}
               </span>
             </div>
-            {showTeamSortToggle ? (
-              <DraftTeamSortControl
-                value={teamSort}
-                onChange={setTeamSort}
-                rankSortEnabled={showRanks}
-                className="mt-3"
-              />
-            ) : null}
           </header>
           <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-1">
             {displayTeams.map((team) => {

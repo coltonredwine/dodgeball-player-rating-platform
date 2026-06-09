@@ -88,6 +88,7 @@ type DraftStatePayload = {
       publicBoardEnabled: boolean;
       publicShowRanks: boolean;
       publicShowSkillRatings: boolean;
+      publicTeamSort?: "pickOrder" | "avgRank";
     };
   };
   currentPickNumber: number;
@@ -536,7 +537,7 @@ export function DraftBoardView({
         state={state}
         visibility={publicBoardVisibility(state.draft.displaySettings)}
         linkPlayerProfiles={false}
-        showTeamSortToggle
+        teamSortMode={state.draft.displaySettings.publicTeamSort ?? "pickOrder"}
       />
     );
   }

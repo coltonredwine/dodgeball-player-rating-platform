@@ -28,6 +28,7 @@ const settingsSchema = z.object({
       publicBoardEnabled: z.boolean(),
       publicShowRanks: z.boolean(),
       publicShowSkillRatings: z.boolean(),
+      publicTeamSort: z.enum(["pickOrder", "avgRank"]),
     })
     .optional(),
   teams: z

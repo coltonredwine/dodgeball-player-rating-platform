@@ -3,6 +3,7 @@ import {
   DEFAULT_SORT_SETTINGS,
   PlayerSortField,
 } from "@/lib/draft/sort";
+import type { DraftTeamSortMode } from "@/lib/draft/team-sort";
 
 /** ColorBrewer Set1-9 */
 export const TEAM_COLOR_PALETTE = [
@@ -31,6 +32,7 @@ export type DraftDisplaySettings = {
   publicBoardEnabled: boolean;
   publicShowRanks: boolean;
   publicShowSkillRatings: boolean;
+  publicTeamSort: DraftTeamSortMode;
 };
 
 const DEFAULT_DISPLAY_SETTINGS: DraftDisplaySettings = {
@@ -39,6 +41,7 @@ const DEFAULT_DISPLAY_SETTINGS: DraftDisplaySettings = {
   publicBoardEnabled: false,
   publicShowRanks: true,
   publicShowSkillRatings: true,
+  publicTeamSort: "pickOrder",
   ...DEFAULT_SORT_SETTINGS,
 };
 
@@ -56,6 +59,8 @@ export function parseDisplaySettings(raw: string | null | undefined): DraftDispl
       publicBoardEnabled: parsed.publicBoardEnabled ?? false,
       publicShowRanks: parsed.publicShowRanks ?? true,
       publicShowSkillRatings: parsed.publicShowSkillRatings ?? true,
+      publicTeamSort:
+        parsed.publicTeamSort === "avgRank" ? "avgRank" : "pickOrder",
     };
   } catch {
     return { ...DEFAULT_DISPLAY_SETTINGS };
