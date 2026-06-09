@@ -17,7 +17,7 @@ type Props = AppNavData & {
   draftStatus?: {
     name: string;
     isLive: boolean;
-    currentPickNumber: number;
+    picksMade: number;
     totalPicks: number;
   };
   /** When true, draftStatus renders only at lg breakpoint and above. */
@@ -324,7 +324,7 @@ export function AppNav({
               </span>
             )}
             <span className="shrink-0 text-sm text-[var(--draft-text-medium)]">
-              Pick {Math.min(draftStatus.currentPickNumber, draftStatus.totalPicks)} /{" "}
+              Pick {Math.min(draftStatus.picksMade, draftStatus.totalPicks)} /{" "}
               {draftStatus.totalPicks}
             </span>
           </div>

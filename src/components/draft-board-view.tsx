@@ -13,6 +13,7 @@ import { TeamQuotaTable } from "@/components/team-quota-table";
 import { filterPlayersByQuery } from "@/lib/player-search";
 import type { QuotaLimits } from "@/lib/draft/quotas";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
+import { validateRosterMove } from "@/lib/draft/trade-validation";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
 import { formatCalcRankDisplay, type RankThresholds } from "@/lib/rankings/thresholds";
 import { DraftBoardTvView } from "@/components/draft-board-tv-view";
@@ -22,7 +23,7 @@ import { DRAFT_ROOM_CLASS, DRAFT_ROOM_DARK, DRAFT_ROOM_LIGHT } from "@/lib/draft
 export type DraftBoardStatus = {
   isLive: boolean;
   draftStatus: string;
-  currentPickNumber: number;
+  picksMade: number;
   totalPicks: number;
   onClockCaptainName: string | null;
 };
@@ -89,6 +90,7 @@ type DraftStatePayload = {
     };
   };
   currentPickNumber: number;
+  picksMade: number;
   totalPicks: number;
   onClockTeamId: string | null;
   turnQueue: Array<{ pickNumber: number; teamId: string; round: number }>;
@@ -101,12 +103,14 @@ type DraftStatePayload = {
     lastName: string;
   }>;
   undrafted: UndraftedPlayer[];
+  drafted?: UndraftedPlayer[];
   undraftedTotal: number;
   undraftedRankCounts: Record<number, number>;
   teams: TeamState[];
   quotas: Record<number, QuotaLimits>;
   eligibility?: Record<string, boolean>;
   adminPickEligibility?: Record<string, boolean>;
+  pendingTrades?: import("@/components/pending-trade-proposal-card").PendingTradeProposal[];
 };
 
 type Props = {
@@ -120,9 +124,7 @@ type Props = {
 
 function AdminPlayerProfile({
   player,
-  teams,
-  draftTeamId,
-  onDraftTeamIdChange,
+  onClockCaptainName,
   onDraft,
   pickBusy,
   pickError,
@@ -130,18 +132,30 @@ function AdminPlayerProfile({
   draftBlockedReason,
   quotaForbidden,
   viewOnly = false,
+  currentTeamName,
+  moveControls,
 }: {
   player: UndraftedPlayer;
-  teams: TeamState[];
-  draftTeamId: string;
-  onDraftTeamIdChange: (teamId: string) => void;
-  onDraft: () => void;
-  pickBusy: boolean;
-  pickError: string | null;
-  canDraft: boolean;
-  draftBlockedReason: string | null;
-  quotaForbidden: boolean;
+  onClockCaptainName?: string | null;
+  onDraft?: () => void;
+  pickBusy?: boolean;
+  pickError?: string | null;
+  canDraft?: boolean;
+  draftBlockedReason?: string | null;
+  quotaForbidden?: boolean;
   viewOnly?: boolean;
+  currentTeamName?: string | null;
+  moveControls?: {
+    fromTeamId: string;
+    targetTeamId: string;
+    onTargetTeamChange: (teamId: string) => void;
+    teams: Array<{ id: string; captainName: string }>;
+    validation: ReturnType<typeof validateRosterMove> | null;
+    moveBusy: boolean;
+    moveError: string | null;
+    onMove: () => void;
+    onCancel: () => void;
+  };
 }) {
   const scores = player.scores;
   if (!scores) {
@@ -154,6 +168,11 @@ function AdminPlayerProfile({
         <h3 className="text-lg font-semibold">
           {player.firstName} {player.lastName}
         </h3>
+        {currentTeamName ? (
+          <p className="mt-1 text-sm text-zinc-600">
+            Current team: <span className="font-medium">{currentTeamName}</span>
+          </p>
+        ) : null}
         {player.link ? (
           <a
             href={player.link}
@@ -187,24 +206,59 @@ function AdminPlayerProfile({
         </div>
       </div>
 
-      {!viewOnly ? (
-        <div className="space-y-2 border-t border-zinc-200 pt-4">
-          <label className="flex flex-col gap-1 text-sm">
-            Draft to team
+      {!viewOnly && moveControls ? (
+        <div className="space-y-3 border-t border-zinc-200 pt-4">
+          <label className="block text-sm font-medium text-zinc-700">
+            Move to team
             <select
-              className="rounded border px-2 py-1"
-              value={draftTeamId}
-              onChange={(event) => onDraftTeamIdChange(event.target.value)}
+              className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm"
+              value={moveControls.targetTeamId}
+              onChange={(event) => moveControls.onTargetTeamChange(event.target.value)}
             >
-              <option value="">Select captain…</option>
-              {teams.map((team) => (
-                <option key={team.id} value={team.id} disabled={team.remainingPicks <= 0}>
-                  {team.captainName}
-                  {team.remainingPicks <= 0 ? " (roster full)" : ""}
-                </option>
-              ))}
+              {moveControls.teams
+                .filter((team) => team.id !== moveControls.fromTeamId)
+                .map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.captainName}
+                  </option>
+                ))}
             </select>
           </label>
+          {moveControls.validation && !moveControls.validation.allowed ? (
+            <p className="text-sm text-amber-700">
+              {moveControls.validation.violations.join(" ")} You can force the move anyway.
+            </p>
+          ) : null}
+          {moveControls.moveError ? (
+            <p className="text-sm text-red-700">{moveControls.moveError}</p>
+          ) : null}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700"
+              onClick={moveControls.onCancel}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              disabled={moveControls.moveBusy || !moveControls.targetTeamId}
+              onClick={moveControls.onMove}
+            >
+              {moveControls.moveBusy ? "Moving…" : "Move player"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {!viewOnly && !moveControls ? (
+        <div className="space-y-2 border-t border-zinc-200 pt-4">
+          {onClockCaptainName ? (
+            <p className="text-sm text-zinc-700">
+              Draft to <span className="font-medium">{onClockCaptainName}</span>
+            </p>
+          ) : null}
           {draftBlockedReason ? <p className="text-xs text-zinc-500">{draftBlockedReason}</p> : null}
           {quotaForbidden ? (
             <p className="text-xs text-red-700">
@@ -241,8 +295,17 @@ export function DraftBoardView({
   const [pickBusy, setPickBusy] = useState(false);
   const [undraftedSearch, setUndraftedSearch] = useState("");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [draftTeamId, setDraftTeamId] = useState("");
   const [forcePickConfirmOpen, setForcePickConfirmOpen] = useState(false);
+  const [selectedRosterMove, setSelectedRosterMove] = useState<{
+    playerId: string;
+    fromTeamId: string;
+    firstName: string;
+    lastName: string;
+  } | null>(null);
+  const [moveTargetTeamId, setMoveTargetTeamId] = useState("");
+  const [forceMoveConfirmOpen, setForceMoveConfirmOpen] = useState(false);
+  const [moveBusy, setMoveBusy] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
   const teamCardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const refresh = useCallback(async () => {
@@ -259,6 +322,21 @@ export function DraftBoardView({
       setSelectedPlayerId((current) => {
         if (!current) return current;
         return data.undrafted.some((player) => player.playerId === current) ? current : null;
+      });
+      setSelectedRosterMove((current) => {
+        if (!current) return current;
+        for (const team of data.teams) {
+          const player = team.roster.find((entry) => entry.playerId === current.playerId);
+          if (player) {
+            return {
+              playerId: current.playerId,
+              fromTeamId: team.id,
+              firstName: player.firstName,
+              lastName: player.lastName,
+            };
+          }
+        }
+        return null;
       });
     } catch {
       setError(
@@ -285,11 +363,6 @@ export function DraftBoardView({
   }, [refresh, state?.draft.isLive]);
 
   useEffect(() => {
-    if (!state?.onClockTeamId) return;
-    setDraftTeamId(state.onClockTeamId);
-  }, [state?.onClockTeamId]);
-
-  useEffect(() => {
     if (mode !== "admin" || !state?.onClockTeamId) return;
     const onClockTeamId = state.onClockTeamId;
     const frame = requestAnimationFrame(() => {
@@ -305,11 +378,20 @@ export function DraftBoardView({
     onStatusChange({
       isLive: state.draft.isLive,
       draftStatus: state.draft.status,
-      currentPickNumber: state.currentPickNumber,
+      picksMade: state.picksMade + (state.onClockTeamId ? 1 : 0),
       totalPicks: state.totalPicks,
       onClockCaptainName: onClockTeam?.captainName ?? null,
     });
   }, [state, onStatusChange]);
+
+  useEffect(() => {
+    if (!selectedRosterMove || !moveTargetTeamId || !state) return;
+    if (moveTargetTeamId === selectedRosterMove.fromTeamId) {
+      setMoveTargetTeamId(
+        state.teams.find((team) => team.id !== selectedRosterMove.fromTeamId)?.id ?? "",
+      );
+    }
+  }, [moveTargetTeamId, selectedRosterMove, state]);
 
   const filteredUndrafted = useMemo(() => {
     if (!state) return [];
@@ -321,20 +403,31 @@ export function DraftBoardView({
     return state.undrafted.find((player) => player.playerId === selectedPlayerId) ?? null;
   }, [state, selectedPlayerId]);
 
-  const draftTeam = state?.teams.find((team) => team.id === draftTeamId);
+  const selectedRosterPlayer = useMemo(() => {
+    if (!state || !selectedRosterMove) return null;
+    return (
+      state.drafted?.find((player) => player.playerId === selectedRosterMove.playerId) ?? null
+    );
+  }, [selectedRosterMove, state]);
+
+  const selectedRosterFromTeam = useMemo(() => {
+    if (!state || !selectedRosterMove) return null;
+    return state.teams.find((team) => team.id === selectedRosterMove.fromTeamId) ?? null;
+  }, [selectedRosterMove, state]);
+
   const canDraft =
     mode === "admin" &&
     !adminReadOnly &&
     !!selectedPlayer &&
     !!state?.draft.isLive &&
     state.draft.status !== "complete" &&
-    draftTeamId === state.onClockTeamId;
+    !!state.onClockTeamId;
 
   const draftBlockedReason = (() => {
     if (mode !== "admin" || !selectedPlayer) return null;
     if (!state?.draft.isLive) return "Go live to draft players.";
     if (state.draft.status === "complete") return "Draft is complete.";
-    if (draftTeamId !== state.onClockTeamId) return "Only the on-clock captain can receive the next pick.";
+    if (!state.onClockTeamId) return "No captain is on the clock.";
     return null;
   })();
 
@@ -344,7 +437,7 @@ export function DraftBoardView({
   }
 
   function requestDraftSelectedPlayer() {
-    if (!state || !selectedPlayer || !draftTeamId || !canDraft) return;
+    if (!state || !selectedPlayer || !state.onClockTeamId || !canDraft) return;
     if (isQuotaForbiddenForOnClock(selectedPlayer.playerId)) {
       setForcePickConfirmOpen(true);
       return;
@@ -353,14 +446,14 @@ export function DraftBoardView({
   }
 
   async function draftSelectedPlayer() {
-    if (!state || !selectedPlayer || !draftTeamId || !canDraft) return;
+    if (!state || !selectedPlayer || !state.onClockTeamId || !canDraft) return;
     setPickBusy(true);
     setPickError(null);
     try {
       const res = await fetch(`/api/admin/drafts/${draftId}/pick`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId: draftTeamId, playerId: selectedPlayer.playerId }),
+        body: JSON.stringify({ teamId: state.onClockTeamId, playerId: selectedPlayer.playerId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -372,6 +465,48 @@ export function DraftBoardView({
       await refresh();
     } finally {
       setPickBusy(false);
+    }
+  }
+
+  const rosterMoveValidation = useMemo(() => {
+    if (!state || !selectedRosterMove || !moveTargetTeamId) return null;
+    return validateRosterMove(state, selectedRosterMove.playerId, moveTargetTeamId);
+  }, [moveTargetTeamId, selectedRosterMove, state]);
+
+  function requestRosterMove() {
+    if (!selectedRosterMove || !moveTargetTeamId || adminReadOnly) return;
+    if (rosterMoveValidation && !rosterMoveValidation.allowed) {
+      setForceMoveConfirmOpen(true);
+      return;
+    }
+    void executeRosterMove(false);
+  }
+
+  async function executeRosterMove(force: boolean) {
+    if (!selectedRosterMove || !moveTargetTeamId || adminReadOnly) return;
+    setMoveBusy(true);
+    setMoveError(null);
+    try {
+      const res = await fetch(`/api/admin/drafts/${draftId}/roster-move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playerId: selectedRosterMove.playerId,
+          toTeamId: moveTargetTeamId,
+          force,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMoveError(typeof data.error === "string" ? data.error : "Move failed");
+        return;
+      }
+      setForceMoveConfirmOpen(false);
+      setSelectedRosterMove(null);
+      setMoveTargetTeamId("");
+      await refresh();
+    } finally {
+      setMoveBusy(false);
     }
   }
 
@@ -408,6 +543,7 @@ export function DraftBoardView({
   const onClock = draftState.teams.find((t) => t.id === draftState.onClockTeamId);
   const isBoard = false;
   const isAdmin = mode === "admin";
+  const rosterMovesEnabled = isAdmin && !adminReadOnly;
   const isDarkRoom = mode === "captain";
   const showDraftCalcDisplay = !isAdmin;
   const theme = isDarkRoom ? DRAFT_ROOM_DARK : DRAFT_ROOM_LIGHT;
@@ -568,7 +704,27 @@ export function DraftBoardView({
   }
 
   function selectAdminPlayer(playerId: string) {
-    if (mode === "admin") setSelectedPlayerId(playerId);
+    if (mode !== "admin") return;
+    setSelectedRosterMove(null);
+    setMoveTargetTeamId("");
+    setMoveError(null);
+    setSelectedPlayerId(playerId);
+  }
+
+  function selectRosterPlayer(
+    player: TeamState["roster"][number],
+    fromTeamId: string,
+  ) {
+    setSelectedPlayerId(null);
+    setPickError(null);
+    setMoveError(null);
+    setSelectedRosterMove({
+      playerId: player.playerId,
+      fromTeamId,
+      firstName: player.firstName,
+      lastName: player.lastName,
+    });
+    setMoveTargetTeamId(draftState.teams.find((entry) => entry.id !== fromTeamId)?.id ?? "");
   }
 
   const rankCountSummary = (
@@ -863,7 +1019,19 @@ export function DraftBoardView({
                 team.roster.map((p) => (
                   <li
                     key={p.playerId}
-                    className={`flex items-center justify-between gap-1.5 border-b ${display.rosterRow} last:border-b-0 ${theme.tableRowBorder}`}
+                    className={[
+                      "flex items-center justify-between gap-1.5 border-b",
+                      display.rosterRow,
+                      "last:border-b-0",
+                      theme.tableRowBorder,
+                      rosterMovesEnabled ? "cursor-pointer hover:bg-zinc-50" : "",
+                      selectedRosterMove?.playerId === p.playerId ? "bg-blue-50 ring-1 ring-inset ring-blue-300" : "",
+                    ].join(" ")}
+                    onClick={
+                      rosterMovesEnabled
+                        ? () => selectRosterPlayer(p, team.id)
+                        : undefined
+                    }
                   >
                     <span className={`min-w-0 truncate ${isBoard || isAdmin || mode === "captain" ? "font-medium" : ""}`}>
                       {p.firstName} {p.lastName}
@@ -972,13 +1140,97 @@ export function DraftBoardView({
   const playerProfilePanel = (
     <section className="flex min-h-0 min-w-0 flex-col overflow-y-auto rounded border border-zinc-200 bg-white p-4 shadow-sm">
       <h3 className="font-medium">Player profile</h3>
-      {selectedPlayer ? (
+      {rosterMovesEnabled && selectedRosterMove ? (
+        <div className="mt-3">
+          {selectedRosterPlayer ? (
+            <AdminPlayerProfile
+              player={selectedRosterPlayer}
+              viewOnly={adminReadOnly}
+              currentTeamName={selectedRosterFromTeam?.captainName ?? null}
+              moveControls={
+                adminReadOnly
+                  ? undefined
+                  : {
+                      fromTeamId: selectedRosterMove.fromTeamId,
+                      targetTeamId: moveTargetTeamId,
+                      onTargetTeamChange: setMoveTargetTeamId,
+                      teams: state.teams.map((team) => ({
+                        id: team.id,
+                        captainName: team.captainName,
+                      })),
+                      validation: rosterMoveValidation,
+                      moveBusy,
+                      moveError,
+                      onMove: requestRosterMove,
+                      onCancel: () => {
+                        setSelectedRosterMove(null);
+                        setMoveTargetTeamId("");
+                        setMoveError(null);
+                      },
+                    }
+              }
+            />
+          ) : (
+            <>
+              <p className="text-sm text-zinc-700">
+                {selectedRosterMove.firstName} {selectedRosterMove.lastName}
+              </p>
+              <p className="mt-1 text-sm text-zinc-500">No scores available for this player.</p>
+              {!adminReadOnly ? (
+                <div className="mt-4 space-y-3 border-t border-zinc-200 pt-4">
+                  <label className="block text-sm font-medium text-zinc-700">
+                    Move to team
+                    <select
+                      className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm"
+                      value={moveTargetTeamId}
+                      onChange={(event) => setMoveTargetTeamId(event.target.value)}
+                    >
+                      {state.teams
+                        .filter((team) => team.id !== selectedRosterMove.fromTeamId)
+                        .map((team) => (
+                          <option key={team.id} value={team.id}>
+                            {team.captainName}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  {rosterMoveValidation && !rosterMoveValidation.allowed ? (
+                    <p className="text-sm text-amber-700">
+                      {rosterMoveValidation.violations.join(" ")} You can force the move anyway.
+                    </p>
+                  ) : null}
+                  {moveError ? <p className="text-sm text-red-700">{moveError}</p> : null}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="rounded border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700"
+                      onClick={() => {
+                        setSelectedRosterMove(null);
+                        setMoveTargetTeamId("");
+                        setMoveError(null);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                      disabled={moveBusy || !moveTargetTeamId}
+                      onClick={requestRosterMove}
+                    >
+                      {moveBusy ? "Moving…" : "Move player"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      ) : selectedPlayer ? (
         <div className="mt-3">
           <AdminPlayerProfile
             player={selectedPlayer}
-            teams={state.teams}
-            draftTeamId={draftTeamId}
-            onDraftTeamIdChange={setDraftTeamId}
+            onClockCaptainName={onClock?.captainName ?? null}
             onDraft={() => requestDraftSelectedPlayer()}
             pickBusy={pickBusy}
             pickError={pickError}
@@ -990,9 +1242,11 @@ export function DraftBoardView({
         </div>
       ) : (
         <p className="mt-3 text-sm text-zinc-500">
-          {adminReadOnly
-            ? "Select a player from the list to view their profile."
-            : "Select a player from the list to view their profile and draft them to a team."}
+          {rosterMovesEnabled
+            ? "Select a player from the pool or a team roster to view their profile."
+            : adminReadOnly
+              ? "Select a player from the list to view their profile."
+              : "Select a player from the list to view their profile and draft them to a team."}
         </p>
       )}
     </section>
@@ -1013,6 +1267,16 @@ export function DraftBoardView({
         confirmClassName="bg-red-600"
         onConfirm={() => void draftSelectedPlayer()}
         onCancel={() => setForcePickConfirmOpen(false)}
+      />
+      <ConfirmDialog
+        open={forceMoveConfirmOpen}
+        title="Force quota-blocked roster move?"
+        message={`Moving ${selectedRosterMove?.firstName ?? ""} ${selectedRosterMove?.lastName ?? ""} would violate rank quotas. Force this move anyway?`}
+        confirmLabel="Force move"
+        pending={moveBusy}
+        confirmClassName="bg-red-600"
+        onConfirm={() => void executeRosterMove(true)}
+        onCancel={() => setForceMoveConfirmOpen(false)}
       />
       {isAdmin ? (
         <div
@@ -1046,7 +1310,7 @@ export function DraftBoardView({
               )}
               <span className={`inline-flex flex-wrap items-center gap-2 ${display.pickStatus} ${theme.pickStatus}`}>
                 <span>
-                  Pick {Math.min(state.currentPickNumber, state.totalPicks)} / {state.totalPicks}
+                  Pick {Math.min(state.picksMade + (state.onClockTeamId ? 1 : 0), state.totalPicks)} / {state.totalPicks}
                   {onClock
                     ? ` — ${onClock.captainName}'s turn`
                     : state.draft.status === "complete"

@@ -30,6 +30,13 @@ enum DraftStatus {
   complete
 }
 
+enum DraftTradeRequestStatus {
+  pending
+  accepted
+  rejected
+  cancelled
+}
+
 model Player {
   id        String         @id @default(cuid())
   firstName String
@@ -140,6 +147,7 @@ model Draft {
   displaySettings  String   @default("{}")
   liveAt           DateTime?
   onClockStartedAt DateTime?
+  nextPickNumber     Int      @default(1)
   completedAt      DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -150,6 +158,7 @@ model Draft {
   scoreExclusions  DraftScoreExclusion[]
   scoreOverrides   DraftScoreOverride[]
   captainFlags     CaptainPlayerFlag[]
+  tradeRequests    DraftTradeRequest[]
 
   @@index([status])
   @@index([seasonLabel])
@@ -180,6 +189,8 @@ model DraftTeam {
   startingPlayers DraftStartingPlayer[]
   picks     DraftPick[]
   captainFlags CaptainPlayerFlag[]
+  proposedTrades DraftTradeRequest[] @relation("ProposedTrades")
+  receivedTrades DraftTradeRequest[] @relation("ReceivedTrades")
 
   @@unique([draftId, raterId])
   @@unique([draftId, pickOrder])
@@ -258,4 +269,24 @@ model CaptainPlayerFlag {
 
   @@unique([draftId, teamId, playerId])
   @@index([teamId])
+}
+
+model DraftTradeRequest {
+  id                 String                  @id @default(cuid())
+  draftId            String
+  proposingTeamId    String
+  counterpartyTeamId String
+  offeredPlayerId    String
+  requestedPlayerId  String
+  status             DraftTradeRequestStatus @default(pending)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  resolvedAt         DateTime?
+  draft              Draft                   @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  proposingTeam      DraftTeam               @relation("ProposedTrades", fields: [proposingTeamId], references: [id], onDelete: Cascade)
+  counterpartyTeam   DraftTeam               @relation("ReceivedTrades", fields: [counterpartyTeamId], references: [id], onDelete: Cascade)
+
+  @@index([draftId, status])
+  @@index([proposingTeamId, status])
+  @@index([counterpartyTeamId, status])
 }

@@ -6,7 +6,7 @@ import {
   CaptainBookmarkButton,
   CaptainPlayerPickActions,
 } from "@/components/captain-pick-controls";
-import { DraftBoardTvView } from "@/components/draft-board-tv-view";
+import { DraftBoardTvView, type CaptainTradeRequestSummary } from "@/components/draft-board-tv-view";
 import { PlayerAvatar } from "@/components/player-avatar";
 import { PlayerSearchInput } from "@/components/player-search-input";
 import { MobileCaptainLayout } from "@/components/mobile-captain-layout";
@@ -29,6 +29,7 @@ import {
 } from "@/lib/draft/pool-sort";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
 import { filterPlayersByQuery } from "@/lib/player-search";
+import { getTradeEligibleOfferPlayerIds, getTradeEligibleTargetPlayerIds } from "@/lib/draft/trade-validation";
 import type { AppNavData } from "@/lib/nav";
 
 type PlayerRow = {
@@ -64,6 +65,7 @@ type TeamRow = {
   targetRosterSize: number;
   quotaNeed: Record<number, number>;
   quotaCap: Record<number, number>;
+  rankCounts: Record<number, number>;
   stats: {
     avgRank: number | null;
     avgOffensive: number | null;
@@ -103,11 +105,13 @@ type DraftStateResponse = {
   undraftedTotal: number;
   undraftedRankCounts: Record<number, number>;
   currentPickNumber: number;
+  picksMade: number;
   totalPicks: number;
   captainTeamId: string | null;
   flaggedPlayerIds: string[];
   eligibility: Record<string, boolean>;
   isCaptainTurn: boolean;
+  pendingTrades?: CaptainTradeRequestSummary[];
 };
 
 const theme = DRAFT_ROOM_DARK;
@@ -161,6 +165,7 @@ function CaptainPickPanel({
   onConfirm,
   onOpenTeam,
   error,
+  tradeError,
   variant,
 }: {
   state: DraftStateResponse;
@@ -172,6 +177,7 @@ function CaptainPickPanel({
   onConfirm: () => void;
   onOpenTeam?: () => void;
   error: string | null;
+  tradeError?: string | null;
   variant: "mobile" | "desktop";
 }) {
   const myTeam = state.teams.find((t) => t.id === state.captainTeamId);
@@ -253,6 +259,12 @@ function CaptainPickPanel({
       {canPick ? (
         <p className="rounded bg-green-950/80 px-4 py-3 text-center text-sm font-medium text-green-300 ring-1 ring-green-800/80">
           Your pick — choose a player
+        </p>
+      ) : null}
+
+      {state.draft.status === "complete" ? (
+        <p className="rounded border border-sky-900/70 bg-sky-950/40 px-4 py-3 text-center text-sm text-sky-100">
+          Draft complete. Swipe to other team cards to propose trades.
         </p>
       ) : null}
 
@@ -390,6 +402,7 @@ function CaptainPickPanel({
       </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {tradeError ? <p className="text-sm text-red-400">{tradeError}</p> : null}
     </div>
   );
 }
@@ -399,6 +412,13 @@ export function CaptainPickView({ draftId, nav }: { draftId: string; nav: AppNav
   const [pendingPickId, setPendingPickId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tradeError, setTradeError] = useState<string | null>(null);
+  const [tradeTargetPlayerId, setTradeTargetPlayerId] = useState<string | null>(null);
+  const [pendingOfferPlayerId, setPendingOfferPlayerId] = useState<string | null>(null);
+  const [pendingTradeResponse, setPendingTradeResponse] = useState<{
+    tradeId: string;
+    action: "accept" | "reject";
+  } | null>(null);
   const openTeamRef = useRef<(() => void) | null>(null);
 
   const refresh = useCallback(async () => {
@@ -456,6 +476,70 @@ export function CaptainPickView({ draftId, nav }: { draftId: string; nav: AppNav
     await refresh();
   }
 
+  function resetTradeFlow() {
+    setTradeTargetPlayerId(null);
+    setPendingOfferPlayerId(null);
+    setPendingTradeResponse(null);
+    setTradeError(null);
+  }
+
+  async function confirmTradeProposal() {
+    if (!tradeTargetPlayerId || !pendingOfferPlayerId) return;
+    setTradeError(null);
+    const res = await fetch(`/api/draft/${draftId}/trades`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requestedPlayerId: tradeTargetPlayerId,
+        offeredPlayerId: pendingOfferPlayerId,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setTradeError(typeof data.error === "string" ? data.error : "Trade request failed");
+      return;
+    }
+    resetTradeFlow();
+    await refresh();
+  }
+
+  async function updateTradeRequest(tradeId: string, action: "accept" | "reject" | "cancel") {
+    setTradeError(null);
+    const res = await fetch(`/api/draft/${draftId}/trades/${tradeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setTradeError(typeof data.error === "string" ? data.error : "Trade update failed");
+      return;
+    }
+    resetTradeFlow();
+    await refresh();
+  }
+
+  const tradeEnabled = state?.draft.status === "complete";
+  const offerEligibility = useMemo(() => {
+    if (!state || !tradeEnabled || !tradeTargetPlayerId || !state.captainTeamId) {
+      return {};
+    }
+    const eligibleIds = getTradeEligibleOfferPlayerIds(
+      state,
+      state.captainTeamId,
+      tradeTargetPlayerId,
+    );
+    return Object.fromEntries(eligibleIds.map((playerId) => [playerId, true]));
+  }, [state, tradeEnabled, tradeTargetPlayerId]);
+
+  const targetEligibility = useMemo(() => {
+    if (!state || !tradeEnabled || !state.captainTeamId || tradeTargetPlayerId) {
+      return {};
+    }
+    const eligibleIds = getTradeEligibleTargetPlayerIds(state, state.captainTeamId);
+    return Object.fromEntries(eligibleIds.map((playerId) => [playerId, true]));
+  }, [state, tradeEnabled, tradeTargetPlayerId]);
+
   if (!state) return <p className={`p-4 ${theme.empty}`}>Loading…</p>;
 
   const canPick = state.isCaptainTurn && state.draft.isLive;
@@ -473,6 +557,7 @@ export function CaptainPickView({ draftId, nav }: { draftId: string; nav: AppNav
     onFlag: toggleFlag,
     onConfirm: confirmPick,
     error,
+    tradeError,
   };
 
   return (
@@ -507,7 +592,7 @@ export function CaptainPickView({ draftId, nav }: { draftId: string; nav: AppNav
               ? {
                   name: state.draft.name,
                   isLive: state.draft.isLive,
-                  currentPickNumber: state.currentPickNumber,
+                  picksMade: state.picksMade + (state.onClockTeamId ? 1 : 0),
                   totalPicks: state.totalPicks,
                 }
               : undefined
@@ -520,6 +605,40 @@ export function CaptainPickView({ draftId, nav }: { draftId: string; nav: AppNav
           state={state}
           showRanks={state.draft.displaySettings.showRanksOnCaptainView}
           onOpenTeamRef={openTeamRef}
+          trade={
+            tradeEnabled
+              ? {
+                  enabled: true,
+                  tradeTargetPlayerId,
+                  pendingOfferPlayerId,
+                  pendingResponse: pendingTradeResponse,
+                  pendingTrades: state.pendingTrades ?? [],
+                  offerEligibility,
+                  targetEligibility,
+                  onSelectTarget: (playerId) => {
+                    setTradeError(null);
+                    setTradeTargetPlayerId(playerId);
+                    setPendingOfferPlayerId(null);
+                  },
+                  onSelectOffer: (playerId) => {
+                    setTradeError(null);
+                    setPendingOfferPlayerId(playerId);
+                  },
+                  onConfirmProposal: () => void confirmTradeProposal(),
+                  onCancelTradeFlow: resetTradeFlow,
+                  onBeginResponse: (tradeId, action) => {
+                    setTradeError(null);
+                    setPendingTradeResponse({ tradeId, action });
+                  },
+                  onConfirmResponse: () => {
+                    if (!pendingTradeResponse) return;
+                    void updateTradeRequest(pendingTradeResponse.tradeId, pendingTradeResponse.action);
+                  },
+                  onCancelResponse: () => setPendingTradeResponse(null),
+                  onCancelOutgoingTrade: (tradeId) => void updateTradeRequest(tradeId, "cancel"),
+                }
+              : undefined
+          }
         >
           <CaptainPickPanel
             {...panelProps}
@@ -544,6 +663,39 @@ export function CaptainPickView({ draftId, nav }: { draftId: string; nav: AppNav
             onConfirmPick: () => void confirmPick(),
             onCancelPick: () => setPendingPickId(null),
             onToggleFlag: (playerId) => void toggleFlag(playerId),
+            tradeError,
+            trade: tradeEnabled
+              ? {
+                  enabled: true,
+                  tradeTargetPlayerId,
+                  pendingOfferPlayerId,
+                  pendingResponse: pendingTradeResponse,
+                  pendingTrades: state.pendingTrades ?? [],
+                  offerEligibility,
+                  targetEligibility,
+                  onSelectTarget: (playerId) => {
+                    setTradeError(null);
+                    setTradeTargetPlayerId(playerId);
+                    setPendingOfferPlayerId(null);
+                  },
+                  onSelectOffer: (playerId) => {
+                    setTradeError(null);
+                    setPendingOfferPlayerId(playerId);
+                  },
+                  onConfirmProposal: () => void confirmTradeProposal(),
+                  onCancelTradeFlow: resetTradeFlow,
+                  onBeginResponse: (tradeId, action) => {
+                    setTradeError(null);
+                    setPendingTradeResponse({ tradeId, action });
+                  },
+                  onConfirmResponse: () => {
+                    if (!pendingTradeResponse) return;
+                    void updateTradeRequest(pendingTradeResponse.tradeId, pendingTradeResponse.action);
+                  },
+                  onCancelResponse: () => setPendingTradeResponse(null),
+                  onCancelOutgoingTrade: (tradeId) => void updateTradeRequest(tradeId, "cancel"),
+                }
+              : undefined,
           }}
         />
       </section>

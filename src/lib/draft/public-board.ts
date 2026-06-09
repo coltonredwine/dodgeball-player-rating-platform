@@ -1,5 +1,6 @@
 import type { DraftDisplaySettings } from "./constants";
 import type { DraftState } from "./service";
+import type { TradeRequestSummary } from "./trades";
 
 export type PublicBoardVisibility = {
   showRanks: boolean;
@@ -86,4 +87,17 @@ export function redactPublicDraftState(
       },
     })),
   } as DraftState;
+}
+
+export function redactPendingTrades(
+  trades: TradeRequestSummary[],
+  settings: Pick<DraftDisplaySettings, "publicShowRanks">,
+): TradeRequestSummary[] {
+  if (settings.publicShowRanks) return trades;
+
+  return trades.map((trade) => ({
+    ...trade,
+    offeredPlayer: { ...trade.offeredPlayer, rank: 0 },
+    requestedPlayer: { ...trade.requestedPlayer, rank: 0 },
+  }));
 }

@@ -157,3 +157,29 @@ export function computeRemainingPicks(
 ): number {
   return Math.max(0, targetRosterSize - currentRosterSize);
 }
+
+/** Whether a team can give away one player of this rank without dropping below the minimum. */
+export function canTeamGiveRank(
+  teamRankCount: number,
+  rank: number,
+  quotas: Record<number, QuotaLimits>,
+  minQuotasEnabled: boolean,
+): boolean {
+  if (!minQuotasEnabled) return true;
+  const limit = quotas[rank];
+  if (!limit) return true;
+  return teamRankCount - 1 >= limit.minPerTeam;
+}
+
+/** Whether a team can receive one more player of this rank without exceeding the maximum. */
+export function canTeamReceiveRank(
+  teamRankCount: number,
+  rank: number,
+  quotas: Record<number, QuotaLimits>,
+  maxQuotasEnabled: boolean,
+): boolean {
+  if (!maxQuotasEnabled) return true;
+  const limit = quotas[rank];
+  if (!limit) return true;
+  return teamRankCount + 1 <= limit.maxPerTeam;
+}

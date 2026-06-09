@@ -73,6 +73,20 @@ export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: P
     bumpBoardRefresh();
   }
 
+  async function skipTurn() {
+    setBusy(true);
+    setMessage(null);
+    const res = await fetch(`/api/admin/drafts/${draftId}/skip-turn`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setMessage(typeof data.error === "string" ? data.error : "Could not skip turn");
+      return;
+    }
+    setMessage(data.completed ? "Skipped turn — draft complete" : "Skipped turn");
+    bumpBoardRefresh();
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded border border-zinc-200 bg-zinc-50 px-4 py-3">
@@ -101,6 +115,26 @@ export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: P
               ) : (
                 "Go live"
               )}
+            </button>
+            <button
+              type="button"
+              disabled={busy || status === "complete" || !isLive || !boardStatus?.onClockCaptainName}
+              className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-50"
+              onClick={skipTurn}
+            >
+              <svg
+                aria-hidden="true"
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M5 4l10 8-10 8V4z" />
+                <path d="M19 5v14" />
+              </svg>
+              Skip turn
             </button>
             <button
               type="button"
@@ -173,7 +207,7 @@ export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: P
                   </span>
                 )}
                 <span>
-                  Pick {Math.min(boardStatus.currentPickNumber, boardStatus.totalPicks)} /{" "}
+                  Pick {Math.min(boardStatus.picksMade, boardStatus.totalPicks)} /{" "}
                   {boardStatus.totalPicks}
                   {boardStatus.onClockCaptainName
                     ? ` — ${boardStatus.onClockCaptainName}'s turn`

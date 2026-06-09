@@ -11,7 +11,12 @@ import {
   quotaCapForTeam,
   rankNeedForTeam,
 } from "@/lib/draft/quotas";
-import { buildTurnQueue, getTeamForPick, pickNumberToRound } from "@/lib/draft/snake";
+import {
+  buildTurnQueue,
+  computeMaxPickNumber,
+  findNextActivePickSlot,
+  pickNumberToRound,
+} from "@/lib/draft/snake";
 import {
   computeTeamStats,
   loadSeasonRatingsForPlayers,
@@ -82,6 +87,7 @@ export type DraftState = {
     displaySettings: ReturnType<typeof parseDisplaySettings>;
   };
   currentPickNumber: number;
+  picksMade: number;
   totalPicks: number;
   onClockTeamId: string | null;
   turnQueue: ReturnType<typeof buildTurnQueue>;
@@ -94,6 +100,34 @@ export type DraftState = {
   quotas: ReturnType<typeof computeRankQuotas>;
   undraftedTotal: number;
 };
+
+export function computePoolPickSlots(draft: {
+  players: { length: number };
+  startingPlayers: { length: number };
+}) {
+  return draft.players.length - draft.startingPlayers.length;
+}
+
+function isDraftFullyAssigned(state: DraftState): boolean {
+  return (
+    state.undrafted.length === 0 &&
+    state.teams.every((team) => team.remainingPicks <= 0)
+  );
+}
+
+function buildPickSlotSearch(
+  draft: NonNullable<Awaited<ReturnType<typeof getDraftRecord>>>,
+  remainingPicksByTeamId: Record<string, number>,
+) {
+  const poolPickSlots = computePoolPickSlots(draft);
+  const maxPickNumber = computeMaxPickNumber(
+    draft.nextPickNumber,
+    draft.teamCount,
+    remainingPicksByTeamId,
+    poolPickSlots,
+  );
+  return { poolPickSlots, maxPickNumber };
+}
 
 export async function getDraftRecord(draftId: string) {
   return prisma.draft.findUnique({
@@ -258,15 +292,55 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
     return { ...team, quotaCap };
   });
 
-  const currentPickNumber = draft.picks.length + 1;
-  const totalPicks = draft.players.length - draft.startingPlayers.length;
-  const onClockTeam =
-    currentPickNumber <= totalPicks
-      ? getTeamForPick(
-          currentPickNumber,
-          draft.teams.map((t) => ({ id: t.id, pickOrder: t.pickOrder })),
+  const totalPicks = computePoolPickSlots(draft);
+  const picksMade = draft.picks.length;
+  const teamOrders = draft.teams.map((t) => ({ id: t.id, pickOrder: t.pickOrder }));
+  const remainingPicksByTeamId = Object.fromEntries(
+    teams.map((team) => [team.id, team.remainingPicks]),
+  );
+  const { maxPickNumber } = buildPickSlotSearch(draft, remainingPicksByTeamId);
+  const draftStateForPickChecks: DraftState = {
+    draft: {
+      id: draft.id,
+      name: draft.name,
+      seasonLabel: draft.seasonLabel,
+      status: draft.status,
+      isLive: draft.isLive,
+      onClockStartedAt: draft.onClockStartedAt?.toISOString() ?? null,
+      teamCount: draft.teamCount,
+      minQuotasEnabled: draft.minQuotasEnabled,
+      maxQuotasEnabled: draft.maxQuotasEnabled,
+      rankThresholds: thresholds,
+      displaySettings,
+    },
+    currentPickNumber: 0,
+    picksMade,
+    totalPicks: 0,
+    onClockTeamId: null,
+    turnQueue: [],
+    pickHistory: [],
+    undrafted,
+    drafted,
+    teams,
+    rankPoolCounts,
+    undraftedRankCounts,
+    quotas,
+    undraftedTotal: undrafted.length,
+  };
+  const canPickByTeamId = computeCanPickByTeamId(draftStateForPickChecks);
+  const activeSlot =
+    draft.status !== "complete" && totalPicks > 0
+      ? findNextActivePickSlot(
+          draft.nextPickNumber,
+          teamOrders,
+          remainingPicksByTeamId,
+          maxPickNumber,
+          canPickByTeamId,
         )
       : null;
+  const onClockTeam = activeSlot
+    ? draft.teams.find((team) => team.id === activeSlot.teamId) ?? null
+    : null;
 
   const teamNameById = new Map(draft.teams.map((t) => [t.id, t.rater.name]));
   const pickHistory: PickHistoryEntry[] = draft.picks.map((pick) => {
@@ -295,14 +369,17 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
       rankThresholds: thresholds,
       displaySettings,
     },
-    currentPickNumber: Math.min(currentPickNumber, totalPicks + 1),
+    currentPickNumber: activeSlot?.pickNumber ?? draft.nextPickNumber,
+    picksMade,
     totalPicks,
     onClockTeamId: onClockTeam?.id ?? null,
     turnQueue: buildTurnQueue(
-      currentPickNumber,
-      draft.teams.map((t) => ({ id: t.id, pickOrder: t.pickOrder })),
+      activeSlot?.pickNumber ?? draft.nextPickNumber,
+      teamOrders,
       8,
-      totalPicks,
+      maxPickNumber,
+      remainingPicksByTeamId,
+      canPickByTeamId,
     ),
     pickHistory,
     undrafted: sortDraftPlayers(undrafted, displaySettings),
@@ -333,6 +410,16 @@ export function canTeamPickPlayer(
     state.quotas,
     state.draft.minQuotasEnabled,
     state.draft.maxQuotasEnabled,
+  );
+}
+
+export function computeCanPickByTeamId(state: DraftState): Record<string, boolean> {
+  return Object.fromEntries(
+    state.teams.map((team) => [
+      team.id,
+      team.remainingPicks > 0 &&
+        state.undrafted.some((player) => canTeamPickPlayer(state, team.id, player.playerId)),
+    ]),
   );
 }
 
@@ -384,7 +471,24 @@ export async function recordPick(
     throw new Error("Pick not allowed");
   }
 
-  const pickNumber = draft.picks.length + 1;
+  const teamOrders = draft.teams.map((t) => ({ id: t.id, pickOrder: t.pickOrder }));
+  const remainingPicksByTeamId = Object.fromEntries(
+    state.teams.map((team) => [team.id, team.remainingPicks]),
+  );
+  const canPickByTeamId = computeCanPickByTeamId(state);
+  const { maxPickNumber } = buildPickSlotSearch(draft, remainingPicksByTeamId);
+  const activeSlot = findNextActivePickSlot(
+    draft.nextPickNumber,
+    teamOrders,
+    remainingPicksByTeamId,
+    maxPickNumber,
+    canPickByTeamId,
+  );
+  if (!activeSlot || activeSlot.teamId !== teamId) {
+    throw new Error("Not this team's turn");
+  }
+
+  const pickNumber = activeSlot.pickNumber;
   const round = pickNumberToRound(pickNumber, draft.teamCount);
 
   const pick = await prisma.draftPick.create({
@@ -398,25 +502,130 @@ export async function recordPick(
   });
 
   const updated = await getDraftRecord(draftId);
-  const totalPicks = (updated?.players.length ?? 0) - (updated?.startingPlayers.length ?? 0);
-  const draftComplete = updated && updated.picks.length >= totalPicks;
+  if (!updated) throw new Error("Draft not found");
+
+  const updatedState = await buildDraftState(draftId);
+  const draftComplete = updatedState != null && isDraftFullyAssigned(updatedState);
 
   if (draftComplete) {
     await prisma.draft.update({
       where: { id: draftId },
-      data: { status: "complete", completedAt: new Date(), onClockStartedAt: null },
+      data: {
+        status: "complete",
+        completedAt: new Date(),
+        onClockStartedAt: null,
+        nextPickNumber: pickNumber + 1,
+      },
     });
   } else {
     await prisma.draft.update({
       where: { id: draftId },
       data: {
+        nextPickNumber: pickNumber + 1,
         onClockStartedAt: new Date(),
-        ...(updated?.status === "setup" ? { status: "in_progress" as const } : {}),
+        ...(updated.status === "setup" ? { status: "in_progress" as const } : {}),
       },
     });
   }
 
   return pick;
+}
+
+export async function skipDraftTurn(draftId: string) {
+  const draft = await getDraftRecord(draftId);
+  if (!draft) throw new Error("Draft not found");
+  if (!draft.isLive) throw new Error("Draft is not live");
+  if (draft.status === "complete") throw new Error("Draft is complete");
+
+  const state = await buildDraftState(draftId);
+  if (!state) throw new Error("Draft not found");
+  if (!state.onClockTeamId) throw new Error("No turn to skip");
+
+  const teamOrders = draft.teams.map((t) => ({ id: t.id, pickOrder: t.pickOrder }));
+  const remainingPicksByTeamId = Object.fromEntries(
+    state.teams.map((team) => [team.id, team.remainingPicks]),
+  );
+  const canPickByTeamId = computeCanPickByTeamId(state);
+  const { maxPickNumber } = buildPickSlotSearch(draft, remainingPicksByTeamId);
+  const activeSlot = findNextActivePickSlot(
+    draft.nextPickNumber,
+    teamOrders,
+    remainingPicksByTeamId,
+    maxPickNumber,
+    canPickByTeamId,
+  );
+  if (!activeSlot) throw new Error("No turn to skip");
+
+  if (isDraftFullyAssigned(state)) {
+    await prisma.draft.update({
+      where: { id: draftId },
+      data: {
+        status: "complete",
+        completedAt: new Date(),
+        onClockStartedAt: null,
+        nextPickNumber: activeSlot.pickNumber + 1,
+      },
+    });
+    return { skippedPickNumber: activeSlot.pickNumber, completed: true };
+  }
+
+  await prisma.draft.update({
+    where: { id: draftId },
+    data: {
+      nextPickNumber: activeSlot.pickNumber + 1,
+      onClockStartedAt: new Date(),
+      ...(draft.status === "setup" ? { status: "in_progress" as const } : {}),
+    },
+  });
+
+  return { skippedPickNumber: activeSlot.pickNumber, completed: false };
+}
+
+async function reconcileDraftAfterPoolChange(draftId: string) {
+  const draft = await getDraftRecord(draftId);
+  if (!draft || draft.status === "complete") return;
+
+  const state = await buildDraftState(draftId);
+  if (!state) return;
+
+  if (isDraftFullyAssigned(state)) {
+    await prisma.draft.update({
+      where: { id: draftId },
+      data: {
+        status: "complete",
+        completedAt: new Date(),
+        onClockStartedAt: null,
+      },
+    });
+    return;
+  }
+
+  if (!draft.isLive) return;
+
+  const remainingPicksByTeamId = Object.fromEntries(
+    state.teams.map((team) => [team.id, team.remainingPicks]),
+  );
+  const teamOrders = draft.teams.map((team) => ({ id: team.id, pickOrder: team.pickOrder }));
+  const canPickByTeamId = computeCanPickByTeamId(state);
+  const { maxPickNumber } = buildPickSlotSearch(draft, remainingPicksByTeamId);
+  const activeSlot = findNextActivePickSlot(
+    draft.nextPickNumber,
+    teamOrders,
+    remainingPicksByTeamId,
+    maxPickNumber,
+    canPickByTeamId,
+  );
+
+  if (activeSlot) {
+    await prisma.draft.update({
+      where: { id: draftId },
+      data: {
+        status: "in_progress",
+        completedAt: null,
+        onClockStartedAt: new Date(),
+      },
+    });
+  }
 }
 
 export async function addPlayerToDraft(draftId: string, playerId: string) {
@@ -432,7 +641,10 @@ export async function addPlayerToDraft(draftId: string, playerId: string) {
   });
   if (existing) throw new Error("Player already in draft pool");
 
-  return prisma.draftPlayer.create({ data: { draftId, playerId } });
+  return prisma.draftPlayer.create({ data: { draftId, playerId } }).then(async (entry) => {
+    await reconcileDraftAfterPoolChange(draftId);
+    return entry;
+  });
 }
 
 export async function removePlayerFromDraft(draftId: string, playerId: string) {
@@ -464,6 +676,8 @@ export async function removePlayerFromDraft(draftId: string, playerId: string) {
     prisma.captainPlayerFlag.deleteMany({ where: { draftId, playerId } }),
     prisma.draftPlayer.delete({ where: { draftId_playerId: { draftId, playerId } } }),
   ]);
+
+  await reconcileDraftAfterPoolChange(draftId);
 }
 
 async function findBufferRaterId(assignedRaterIds: Set<string>) {
@@ -633,6 +847,7 @@ export async function undoLastPick(draftId: string) {
       isLive: true,
       completedAt: null,
       onClockStartedAt: new Date(),
+      nextPickNumber: lastPick.pickNumber,
     },
   });
   return lastPick;
@@ -640,10 +855,7 @@ export async function undoLastPick(draftId: string) {
 
 export async function getCaptainAssignmentsForRater(raterId: string) {
   return prisma.draftTeam.findMany({
-    where: {
-      raterId,
-      draft: { status: { not: "complete" } },
-    },
+    where: { raterId },
     include: { draft: true },
     orderBy: { draft: { createdAt: "desc" } },
   });

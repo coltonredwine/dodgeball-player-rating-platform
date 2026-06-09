@@ -8,7 +8,18 @@ import { PickClock } from "@/components/pick-clock";
 import { RankGlyph } from "@/components/rank-glyph";
 import { resolveGhostRosterPlayers } from "@/lib/draft/bookmarks";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
+import { isTradeRosterPlayerInactive } from "@/lib/draft/trade-validation";
 import { DRAFT_ROOM_DARK } from "@/lib/draft-room-theme";
+import type { CaptainTradeControls } from "@/components/draft-board-tv-view";
+import {
+  PendingTradeProposalCard,
+  type PendingTradeProposal,
+} from "@/components/pending-trade-proposal-card";
+import {
+  CaptainTradeResponseActions,
+  CaptainTradeSwapButton,
+  CaptainTradeTargetActions,
+} from "@/components/captain-pick-controls";
 
 type TeamState = {
   id: string;
@@ -226,6 +237,9 @@ function MobileRosterPlayerRow({
   isStarter = false,
   showRanks,
   ghost = false,
+  tradeActions,
+  highlighted = false,
+  inactive = false,
 }: {
   playerId: string;
   firstName: string;
@@ -236,6 +250,9 @@ function MobileRosterPlayerRow({
   isStarter?: boolean;
   showRanks: boolean;
   ghost?: boolean;
+  tradeActions?: ReactNode;
+  highlighted?: boolean;
+  inactive?: boolean;
 }) {
   const fullName = `${firstName} ${lastName}`;
 
@@ -246,6 +263,8 @@ function MobileRosterPlayerRow({
         ghost
           ? "draft-roster-ghost mx-0 my-1.5 rounded-lg border-b-0 px-2"
           : theme.tableRowBorder,
+        inactive ? "draft-player-inactive" : "",
+        highlighted ? "rounded-md bg-sky-950/30 ring-1 ring-sky-700/60" : "",
       ].join(" ")}
     >
       <PlayerAvatar playerId={playerId} link={link} name={fullName} size={MOBILE_ROSTER_AVATAR_SIZE} />
@@ -269,6 +288,7 @@ function MobileRosterPlayerRow({
         ) : null}
       </div>
       <LeaningIcon leaning={leaning} size={14} className="shrink-0" />
+      {tradeActions}
     </li>
   );
 }
@@ -280,6 +300,10 @@ function MobileTeamPanel({
   showRanks,
   isOnClock,
   ghostPlayers = [],
+  isCaptainTeam = false,
+  captainTeamId = null,
+  trade,
+  teamPendingTrades = [],
 }: {
   team: TeamState;
   minQuotasEnabled: boolean;
@@ -287,7 +311,96 @@ function MobileTeamPanel({
   showRanks: boolean;
   isOnClock: boolean;
   ghostPlayers?: UndraftedPlayer[];
+  isCaptainTeam?: boolean;
+  captainTeamId?: string | null;
+  trade?: CaptainTradeControls;
+  teamPendingTrades?: PendingTradeProposal[];
 }) {
+  const incomingTrades =
+    trade?.pendingTrades.filter((entry) => entry.counterpartyTeamId === team.id) ?? [];
+  const outgoingTrades =
+    trade?.pendingTrades.filter((entry) => entry.proposingTeamId === team.id) ?? [];
+  const hasOutgoingPending = outgoingTrades.length > 0;
+  const quotasEnabled = areQuotasEnabled({ minQuotasEnabled, maxQuotasEnabled });
+
+  function tradeRosterInactive(player: TeamState["roster"][number]) {
+    if (!trade?.enabled) return false;
+    return isTradeRosterPlayerInactive({
+      tradeEnabled: trade.enabled,
+      quotasEnabled,
+      isStarter: player.isStarter,
+      playerId: player.playerId,
+      isCaptainTeam: !!isCaptainTeam,
+      hasOutgoingPending,
+      tradeTargetPlayerId: trade.tradeTargetPlayerId,
+      offerEligibility: trade.offerEligibility,
+      targetEligibility: trade.targetEligibility,
+    });
+  }
+
+  function renderTradeActions(player: TeamState["roster"][number]) {
+    if (!trade?.enabled || !captainTeamId) return null;
+    if (player.isStarter) return null;
+
+    const incomingTrade = incomingTrades.find(
+      (entry) => entry.requestedPlayerId === player.playerId,
+    );
+    if (incomingTrade && isCaptainTeam) {
+      const pendingAccept =
+        trade.pendingResponse?.tradeId === incomingTrade.id &&
+        trade.pendingResponse.action === "accept";
+      const pendingReject =
+        trade.pendingResponse?.tradeId === incomingTrade.id &&
+        trade.pendingResponse.action === "reject";
+
+      return (
+        <CaptainTradeResponseActions
+          isPendingAccept={pendingAccept}
+          isPendingReject={pendingReject}
+          onAccept={() => trade.onBeginResponse(incomingTrade.id, "accept")}
+          onReject={() => trade.onBeginResponse(incomingTrade.id, "reject")}
+          onConfirm={trade.onConfirmResponse}
+          onCancel={trade.onCancelResponse}
+        />
+      );
+    }
+
+    if (isCaptainTeam) {
+      const eligible = trade.offerEligibility[player.playerId] === true;
+      const isPendingOffer = trade.pendingOfferPlayerId === player.playerId;
+      const showOfferButton = trade.tradeTargetPlayerId != null && eligible && !hasOutgoingPending;
+      if (!showOfferButton && !isPendingOffer) return null;
+
+      return (
+        <CaptainTradeSwapButton
+          disabled={!eligible}
+          isPending={isPendingOffer}
+          onClick={() => trade.onSelectOffer(player.playerId)}
+          onConfirm={trade.onConfirmProposal}
+          onCancel={trade.onCancelTradeFlow}
+        />
+      );
+    }
+
+    if (team.id === captainTeamId || hasOutgoingPending) return null;
+
+    if (trade.tradeTargetPlayerId === player.playerId) {
+      return <CaptainTradeTargetActions onCancel={trade.onCancelTradeFlow} />;
+    }
+
+    if (trade.tradeTargetPlayerId != null) return null;
+
+    if (trade.targetEligibility[player.playerId] !== true) return null;
+
+    return (
+      <CaptainTradeSwapButton
+        onClick={() => trade.onSelectTarget(player.playerId)}
+        onConfirm={() => undefined}
+        onCancel={trade.onCancelTradeFlow}
+      />
+    );
+  }
+
   return (
     <div
       className={`${carouselPanelClass} mt-2 h-[calc(100%-0.5rem)]`}
@@ -332,8 +445,73 @@ function MobileTeamPanel({
             ) : null}
           </div>
 
+          {trade?.enabled && isCaptainTeam && outgoingTrades.length > 0 ? (
+            <div className="mt-2 space-y-2 px-3">
+              {outgoingTrades.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="rounded-lg border border-amber-800/70 bg-amber-950/40 px-2.5 py-2 text-xs text-amber-100"
+                >
+                  Trade proposal sent. Waiting for {entry.counterpartyCaptainName}&apos;s response.
+                  <button
+                    type="button"
+                    className="ml-2 underline hover:text-white"
+                    onClick={() => trade.onCancelOutgoingTrade(entry.id)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {trade?.enabled && isCaptainTeam && trade.tradeTargetPlayerId ? (
+            <div className="mt-2 px-3">
+              <div className="rounded-lg border border-sky-800/70 bg-sky-950/30 px-2.5 py-2 text-xs text-sky-100">
+                Choose one of your players to offer in the swap.
+                <button
+                  type="button"
+                  className="ml-2 underline hover:text-white"
+                  onClick={trade.onCancelTradeFlow}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <div className="px-3 pb-4 pt-2">
             <p className={`mb-2 text-xs font-semibold uppercase tracking-wide ${theme.cardMeta}`}>Roster</p>
+            {teamPendingTrades.length > 0 ? (
+              <div className="mb-3 space-y-2">
+                {teamPendingTrades.map((entry) => {
+                  const incomingTrade =
+                    trade?.enabled && isCaptainTeam
+                      ? incomingTrades.find((tradeEntry) => tradeEntry.id === entry.id)
+                      : undefined;
+
+                  return (
+                    <PendingTradeProposalCard
+                      key={entry.id}
+                      trade={entry}
+                      compact
+                      approveActions={
+                        trade?.enabled && isCaptainTeam && incomingTrade
+                          ? {
+                              isPending:
+                                trade.pendingResponse?.tradeId === entry.id &&
+                                trade.pendingResponse.action === "accept",
+                              onBegin: () => trade.onBeginResponse(entry.id, "accept"),
+                              onConfirm: trade.onConfirmResponse,
+                              onCancel: trade.onCancelResponse,
+                            }
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
+            ) : null}
             <ul className="space-y-0 text-sm">
               {team.roster.length === 0 ? (
                 <li className={theme.cardStatsMuted}>No picks yet.</li>
@@ -349,6 +527,13 @@ function MobileTeamPanel({
                     leaning={p.leaning}
                     isStarter={p.isStarter}
                     showRanks={showRanks}
+                    tradeActions={renderTradeActions(p)}
+                    inactive={tradeRosterInactive(p)}
+                    highlighted={
+                      !tradeRosterInactive(p) &&
+                      (trade?.tradeTargetPlayerId === p.playerId ||
+                        trade?.pendingOfferPlayerId === p.playerId)
+                    }
                   />
                 ))
               )}
@@ -384,11 +569,13 @@ export function MobileCaptainLayout({
   state,
   showRanks,
   onOpenTeamRef,
+  trade,
   children,
 }: {
   state: MobileCaptainState;
   showRanks: boolean;
   onOpenTeamRef?: MutableRefObject<(() => void) | null>;
+  trade?: CaptainTradeControls;
   children: ReactNode;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -411,6 +598,10 @@ export function MobileCaptainLayout({
       state.undrafted,
     );
   }, [myTeam, state.flaggedPlayerIds, state.undrafted]);
+
+  const pendingTrades = trade?.pendingTrades ?? [];
+  const teamPendingTradesFor = (teamId: string) =>
+    pendingTrades.filter((entry) => entry.counterpartyTeamId === teamId);
 
   const scrollToPanel = useCallback(
     (index: number) => {
@@ -470,6 +661,10 @@ export function MobileCaptainLayout({
             showRanks={showRanks}
             isOnClock={myTeam.id === state.onClockTeamId}
             ghostPlayers={captainGhostPlayers}
+            isCaptainTeam
+            captainTeamId={myTeamId}
+            trade={trade}
+            teamPendingTrades={teamPendingTradesFor(myTeam.id)}
           />
         ) : null}
         {otherTeams.map((team) => (
@@ -480,6 +675,9 @@ export function MobileCaptainLayout({
             maxQuotasEnabled={state.draft.maxQuotasEnabled}
             showRanks={showRanks}
             isOnClock={team.id === state.onClockTeamId}
+            captainTeamId={myTeamId}
+            trade={trade}
+            teamPendingTrades={teamPendingTradesFor(team.id)}
           />
         ))}
       </div>

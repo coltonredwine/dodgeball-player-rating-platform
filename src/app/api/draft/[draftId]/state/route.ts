@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveSession } from "@/lib/auth";
 import { buildDraftState, canTeamPickPlayer } from "@/lib/draft/service";
+import { listPendingTradeRequests } from "@/lib/draft/trades";
 import { prisma } from "@/lib/db";
 
 type Params = { params: Promise<{ draftId: string }> };
@@ -48,12 +49,16 @@ export async function GET(_request: Request, { params }: Params) {
     }
   }
 
+  const pendingTrades =
+    state.draft.status === "complete" ? await listPendingTradeRequests(draftId) : [];
+
   return NextResponse.json({
     ...state,
     captainTeamId,
     flaggedPlayerIds: flagged.map((f) => f.playerId),
     eligibility,
     adminPickEligibility,
+    pendingTrades,
     isCaptainTurn:
       captainTeamId != null &&
       state.draft.isLive &&

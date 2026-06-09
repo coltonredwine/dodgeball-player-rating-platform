@@ -10,10 +10,17 @@ import { TeamQuotaTable } from "@/components/team-quota-table";
 import {
   CaptainBookmarkButton,
   CaptainPlayerPickActions,
+  CaptainTradeResponseActions,
+  CaptainTradeSwapButton,
+  CaptainTradeTargetActions,
 } from "@/components/captain-pick-controls";
 import { filterPlayersByQuery } from "@/lib/player-search";
 import { CaptainPoolSortControl } from "@/components/captain-pool-sort-control";
 import { PlayerPoolRankSections } from "@/components/player-pool-rank-sections";
+import {
+  PendingTradeProposalCard,
+  type PendingTradeProposal,
+} from "@/components/pending-trade-proposal-card";
 import {
   resolveGhostRosterPlayers,
   sortUndraftedWithBookmarks,
@@ -26,6 +33,7 @@ import {
   type CaptainPoolSortField,
 } from "@/lib/draft/pool-sort";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
+import { isTradeRosterPlayerInactive } from "@/lib/draft/trade-validation";
 import type { QuotaLimits } from "@/lib/draft/quotas";
 import type { PublicBoardVisibility } from "@/lib/draft/public-board";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
@@ -33,6 +41,26 @@ import { RANKS_DESC } from "@/lib/rankings/rank-labels";
 const DEFAULT_VISIBILITY: PublicBoardVisibility = {
   showRanks: true,
   showSkillRatings: true,
+};
+
+export type CaptainTradeRequestSummary = PendingTradeProposal;
+
+export type CaptainTradeControls = {
+  enabled: boolean;
+  tradeTargetPlayerId: string | null;
+  pendingOfferPlayerId: string | null;
+  pendingResponse: { tradeId: string; action: "accept" | "reject" } | null;
+  pendingTrades: PendingTradeProposal[];
+  offerEligibility: Record<string, boolean>;
+  targetEligibility: Record<string, boolean>;
+  onSelectTarget: (playerId: string) => void;
+  onSelectOffer: (playerId: string) => void;
+  onConfirmProposal: () => void;
+  onCancelTradeFlow: () => void;
+  onBeginResponse: (tradeId: string, action: "accept" | "reject") => void;
+  onConfirmResponse: () => void;
+  onCancelResponse: () => void;
+  onCancelOutgoingTrade: (tradeId: string) => void;
 };
 
 export type CaptainTvControls = {
@@ -43,14 +71,17 @@ export type CaptainTvControls = {
   showRanksOnCaptainView: boolean;
   pendingPickId: string | null;
   pickError: string | null;
+  tradeError: string | null;
   onChoosePlayer: (playerId: string) => void;
   onConfirmPick: () => void;
   onCancelPick: () => void;
   onToggleFlag: (playerId: string) => void;
+  trade?: CaptainTradeControls;
 };
 
 type PlayerScores = {
   rank: number;
+  overall: number;
   leaning: string;
   displayOffensive: number;
   displayDefensive: number;
@@ -105,6 +136,7 @@ type DraftState = {
     };
   };
   currentPickNumber: number;
+  picksMade: number;
   totalPicks: number;
   onClockTeamId: string | null;
   turnQueue: Array<{ pickNumber: number; teamId: string; round: number }>;
@@ -121,6 +153,7 @@ type DraftState = {
   undraftedRankCounts: Record<number, number>;
   teams: TeamState[];
   quotas: Record<number, QuotaLimits>;
+  pendingTrades?: PendingTradeProposal[];
 };
 
 type Props = {
@@ -331,10 +364,16 @@ function RosterSlot({
   player,
   showRank,
   linkPlayerProfiles = true,
+  tradeActions,
+  highlighted = false,
+  inactive = false,
 }: {
   player?: TeamState["roster"][number];
   showRank: boolean;
   linkPlayerProfiles?: boolean;
+  tradeActions?: ReactNode;
+  highlighted?: boolean;
+  inactive?: boolean;
 }) {
   if (!player) {
     return (
@@ -350,7 +389,13 @@ function RosterSlot({
   const fullName = `${player.firstName} ${player.lastName}`;
 
   return (
-    <div className="draft-tv-roster-slot flex items-center gap-2 px-2 py-2">
+    <div
+      className={[
+        "draft-tv-roster-slot flex items-center gap-2 px-2 py-2",
+        inactive ? "draft-player-inactive" : "",
+        highlighted ? "rounded-md bg-sky-950/30 ring-1 ring-sky-700/60" : "",
+      ].join(" ")}
+    >
       <PlayerAvatar
         playerId={player.playerId}
         link={player.link}
@@ -383,6 +428,7 @@ function RosterSlot({
         monochrome
         className="self-center"
       />
+      {tradeActions}
     </div>
   );
 }
@@ -398,6 +444,9 @@ function TeamCard({
   showSkillRatings = true,
   linkPlayerProfiles = true,
   ghostPlayers = [],
+  trade,
+  captainTeamId,
+  teamPendingTrades = [],
 }: {
   team: TeamState;
   isOnClock: boolean;
@@ -409,8 +458,96 @@ function TeamCard({
   showSkillRatings?: boolean;
   linkPlayerProfiles?: boolean;
   ghostPlayers?: UndraftedPlayer[];
+  trade?: CaptainTradeControls;
+  captainTeamId?: string | null;
+  teamPendingTrades?: PendingTradeProposal[];
 }) {
   const emptySlots = Math.max(0, team.targetRosterSize - team.roster.length);
+  const incomingTrades =
+    trade?.pendingTrades.filter((entry) => entry.counterpartyTeamId === team.id) ?? [];
+  const outgoingTrades =
+    trade?.pendingTrades.filter((entry) => entry.proposingTeamId === team.id) ?? [];
+  const hasOutgoingPending = outgoingTrades.length > 0;
+  const quotasEnabled = areQuotasEnabled({ minQuotasEnabled, maxQuotasEnabled });
+
+  function tradeRosterInactive(player: TeamState["roster"][number]) {
+    if (!trade?.enabled) return false;
+    return isTradeRosterPlayerInactive({
+      tradeEnabled: trade.enabled,
+      quotasEnabled,
+      isStarter: player.isStarter,
+      playerId: player.playerId,
+      isCaptainTeam: !!isCaptainTeam,
+      hasOutgoingPending,
+      tradeTargetPlayerId: trade.tradeTargetPlayerId,
+      offerEligibility: trade.offerEligibility,
+      targetEligibility: trade.targetEligibility,
+    });
+  }
+
+  function renderRosterTradeActions(player: TeamState["roster"][number]) {
+    if (!trade?.enabled || !captainTeamId) return null;
+    if (player.isStarter) return null;
+
+    const incomingTrade = incomingTrades.find(
+      (entry) => entry.requestedPlayerId === player.playerId,
+    );
+    if (incomingTrade && isCaptainTeam) {
+      const pendingAccept =
+        trade.pendingResponse?.tradeId === incomingTrade.id &&
+        trade.pendingResponse.action === "accept";
+      const pendingReject =
+        trade.pendingResponse?.tradeId === incomingTrade.id &&
+        trade.pendingResponse.action === "reject";
+
+      return (
+        <CaptainTradeResponseActions
+          isPendingAccept={pendingAccept}
+          isPendingReject={pendingReject}
+          onAccept={() => trade.onBeginResponse(incomingTrade.id, "accept")}
+          onReject={() => trade.onBeginResponse(incomingTrade.id, "reject")}
+          onConfirm={trade.onConfirmResponse}
+          onCancel={trade.onCancelResponse}
+        />
+      );
+    }
+
+    if (isCaptainTeam) {
+      const eligible = trade.offerEligibility[player.playerId] === true;
+      const isPendingOffer = trade.pendingOfferPlayerId === player.playerId;
+      const showOfferButton = trade.tradeTargetPlayerId != null && eligible && !hasOutgoingPending;
+
+      if (!showOfferButton && !isPendingOffer) return null;
+
+      return (
+        <CaptainTradeSwapButton
+          disabled={!eligible}
+          isPending={isPendingOffer}
+          onClick={() => trade.onSelectOffer(player.playerId)}
+          onConfirm={trade.onConfirmProposal}
+          onCancel={trade.onCancelTradeFlow}
+        />
+      );
+    }
+
+    if (team.id === captainTeamId || hasOutgoingPending) return null;
+
+    if (trade.tradeTargetPlayerId === player.playerId) {
+      return <CaptainTradeTargetActions onCancel={trade.onCancelTradeFlow} />;
+    }
+
+    if (trade.tradeTargetPlayerId != null) return null;
+
+    if (trade.targetEligibility[player.playerId] !== true) return null;
+
+    return (
+      <CaptainTradeSwapButton
+        onClick={() => trade.onSelectTarget(player.playerId)}
+        onConfirm={() => undefined}
+        onCancel={trade.onCancelTradeFlow}
+      />
+    );
+  }
 
   return (
     <article
@@ -452,18 +589,88 @@ function TeamCard({
             />
           </div>
         ) : null}
+
+        {trade?.enabled && isCaptainTeam && outgoingTrades.length > 0 ? (
+          <div className="mt-2 space-y-2">
+            {outgoingTrades.map((entry) => (
+              <div
+                key={entry.id}
+                className="rounded-lg border border-amber-800/70 bg-amber-950/40 px-2.5 py-2 text-xs text-amber-100"
+              >
+                Trade proposal sent. Waiting for {entry.counterpartyCaptainName}&apos;s response.
+                <button
+                  type="button"
+                  className="ml-2 underline hover:text-white"
+                  onClick={() => trade.onCancelOutgoingTrade(entry.id)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {trade?.enabled && isCaptainTeam && trade.tradeTargetPlayerId ? (
+          <div className="mt-2 rounded-lg border border-sky-800/70 bg-sky-950/30 px-2.5 py-2 text-xs text-sky-100">
+            Choose one of your players to offer in the swap.
+            <button
+              type="button"
+              className="ml-2 underline hover:text-white"
+              onClick={trade.onCancelTradeFlow}
+            >
+              Cancel
+            </button>
+          </div>
+        ) : null}
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
         <p className="px-2 pb-1.5 pt-1 text-sm font-semibold text-[var(--draft-text-high)]">
           Roster ({team.roster.length}/{team.targetRosterSize})
         </p>
+        {teamPendingTrades.length > 0 ? (
+          <div className="space-y-2 px-1 pb-2">
+            {teamPendingTrades.map((entry) => {
+              const incomingTrade =
+                trade?.enabled && isCaptainTeam
+                  ? incomingTrades.find((tradeEntry) => tradeEntry.id === entry.id)
+                  : undefined;
+
+              return (
+                <PendingTradeProposalCard
+                  key={entry.id}
+                  trade={entry}
+                  linkPlayerProfiles={linkPlayerProfiles}
+                  approveActions={
+                    trade?.enabled && isCaptainTeam && incomingTrade
+                      ? {
+                          isPending:
+                            trade.pendingResponse?.tradeId === entry.id &&
+                            trade.pendingResponse.action === "accept",
+                          onBegin: () => trade.onBeginResponse(entry.id, "accept"),
+                          onConfirm: trade.onConfirmResponse,
+                          onCancel: trade.onCancelResponse,
+                        }
+                      : undefined
+                  }
+                />
+              );
+            })}
+          </div>
+        ) : null}
         {team.roster.map((player) => (
           <RosterSlot
             key={player.playerId}
             player={player}
             showRank={!hideRanks}
             linkPlayerProfiles={linkPlayerProfiles}
+            tradeActions={renderRosterTradeActions(player)}
+            inactive={tradeRosterInactive(player)}
+            highlighted={
+              !tradeRosterInactive(player) &&
+              (trade?.tradeTargetPlayerId === player.playerId ||
+                trade?.pendingOfferPlayerId === player.playerId)
+            }
           />
         ))}
         {isCaptainTeam
@@ -562,6 +769,8 @@ export function DraftBoardTvView({
       state.undrafted,
     );
   }, [captain, state.teams, state.undrafted]);
+
+  const pendingTrades = state.pendingTrades ?? captain?.trade?.pendingTrades ?? [];
 
   const upcomingQueue = state.turnQueue.slice(1);
   const lastPick = state.pickHistory.at(-1) ?? null;
@@ -663,7 +872,7 @@ export function DraftBoardTvView({
                 </span>
               )}
               <span className="text-sm text-[var(--draft-text-medium)]">
-                Pick {Math.min(state.currentPickNumber, state.totalPicks)} / {state.totalPicks}
+                Pick {Math.min(state.picksMade + (state.onClockTeamId ? 1 : 0), state.totalPicks)} / {state.totalPicks}
               </span>
             </div>
           </header>
@@ -684,6 +893,11 @@ export function DraftBoardTvView({
                   hideRanks={hideRanks}
                   showSkillRatings={showSkillRatings}
                   linkPlayerProfiles={linkPlayerProfiles}
+                  captainTeamId={captain?.captainTeamId}
+                  trade={captain?.trade}
+                  teamPendingTrades={pendingTrades.filter(
+                    (entry) => entry.counterpartyTeamId === team.id,
+                  )}
                   ghostPlayers={
                     captain != null && team.id === captain.captainTeamId
                       ? captainGhostPlayers
@@ -786,9 +1000,9 @@ export function DraftBoardTvView({
               ))
             )}
           </div>
-          {captain?.pickError ? (
+          {captain?.pickError || captain?.tradeError ? (
             <p className="border-t border-[var(--draft-divider)] p-3 text-sm text-red-400">
-              {captain.pickError}
+              {captain.pickError ?? captain.tradeError}
             </p>
           ) : null}
         </aside>
