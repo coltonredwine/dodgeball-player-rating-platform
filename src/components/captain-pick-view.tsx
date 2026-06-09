@@ -60,6 +60,7 @@ type TeamRow = {
     lastName: string;
     link: string | null;
     rank: number;
+    overall: number;
     leaning: string;
     isStarter: boolean;
   }>;
@@ -69,7 +70,6 @@ type TeamRow = {
   rankCounts: Record<number, number>;
   stats: {
     avgRank: number | null;
-    avgOverall: number | null;
     avgOffensive: number | null;
     avgDefensive: number | null;
     offensiveCount: number;

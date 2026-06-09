@@ -50,13 +50,13 @@ type TeamState = {
     lastName: string;
     link: string | null;
     rank: number;
+    overall: number;
     leaning: string;
     isStarter: boolean;
   }>;
   targetRosterSize: number;
   stats: {
     avgRank: number | null;
-    avgOverall: number | null;
     avgOffensive: number | null;
     avgDefensive: number | null;
     offensiveCount: number;
@@ -89,7 +89,7 @@ type DraftStatePayload = {
       publicBoardEnabled: boolean;
       publicShowRanks: boolean;
       publicShowSkillRatings: boolean;
-      publicTeamSort?: "pickOrder" | "avgRank";
+      publicRosterSort?: "pickOrder" | "calc" | "lastName";
     };
   };
   currentPickNumber: number;
@@ -538,7 +538,7 @@ export function DraftBoardView({
         state={state}
         visibility={publicBoardVisibility(state.draft.displaySettings)}
         linkPlayerProfiles={false}
-        teamSortMode={state.draft.displaySettings.publicTeamSort ?? "pickOrder"}
+        rosterSortMode={state.draft.displaySettings.publicRosterSort ?? "pickOrder"}
       />
     );
   }

@@ -70,6 +70,7 @@ export function redactPublicDraftState(
       roster: team.roster.map((entry) => ({
         ...entry,
         rank: settings.publicShowRanks ? entry.rank : 0,
+        overall: entry.overall,
         displayOffensive: settings.publicShowSkillRatings ? entry.displayOffensive : 0,
         displayDefensive: settings.publicShowSkillRatings ? entry.displayDefensive : 0,
         displayPsych: settings.publicShowSkillRatings ? entry.displayPsych : 0,
@@ -80,7 +81,6 @@ export function redactPublicDraftState(
       stats: {
         ...team.stats,
         avgRank: settings.publicShowRanks ? team.stats.avgRank : null,
-        avgOverall: team.stats.avgOverall,
         avgOffensive: settings.publicShowSkillRatings ? team.stats.avgOffensive : null,
         avgDefensive: settings.publicShowSkillRatings ? team.stats.avgDefensive : null,
         offensiveCount: settings.publicShowSkillRatings ? team.stats.offensiveCount : 0,

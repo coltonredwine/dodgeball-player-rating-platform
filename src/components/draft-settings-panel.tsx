@@ -15,7 +15,7 @@ import {
 } from "@/lib/draft/sort";
 import { assignRank } from "@/lib/rankings/thresholds";
 import { formatRank } from "@/lib/rankings/rank-labels";
-import type { DraftTeamSortMode } from "@/lib/draft/team-sort";
+import type { DraftRosterSortMode } from "@/lib/draft/roster-sort";
 
 type RankThresholds = { "2": number; "3": number; "4": number; "5": number };
 
@@ -50,7 +50,7 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
   const [publicBoardEnabled, setPublicBoardEnabled] = useState(false);
   const [publicShowRanks, setPublicShowRanks] = useState(true);
   const [publicShowSkillRatings, setPublicShowSkillRatings] = useState(true);
-  const [publicTeamSort, setPublicTeamSort] = useState<DraftTeamSortMode>("pickOrder");
+  const [publicRosterSort, setPublicRosterSort] = useState<DraftRosterSortMode>("pickOrder");
   const [primarySort, setPrimarySort] = useState<PlayerSortField>(DEFAULT_SORT_SETTINGS.primarySort);
   const [secondarySort, setSecondarySort] = useState<PlayerSortField>(
     DEFAULT_SORT_SETTINGS.secondarySort,
@@ -75,7 +75,7 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
       setPublicBoardEnabled(data.draft.displaySettings.publicBoardEnabled ?? false);
       setPublicShowRanks(data.draft.displaySettings.publicShowRanks ?? true);
       setPublicShowSkillRatings(data.draft.displaySettings.publicShowSkillRatings ?? true);
-      setPublicTeamSort(data.draft.displaySettings.publicTeamSort ?? "pickOrder");
+      setPublicRosterSort(data.draft.displaySettings.publicRosterSort ?? "pickOrder");
       setPrimarySort(data.draft.displaySettings.primarySort);
       setSecondarySort(data.draft.displaySettings.secondarySort);
     }
@@ -123,7 +123,7 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
           publicBoardEnabled,
           publicShowRanks,
           publicShowSkillRatings,
-          publicTeamSort,
+          publicRosterSort,
         },
       }),
     });
@@ -279,27 +279,36 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
             Show OFF / DEF / PSY skill ratings
           </label>
           <fieldset className="mt-4 space-y-2" disabled={!publicBoardEnabled}>
-            <legend className="text-sm font-medium text-zinc-800">Sort team cards by</legend>
+            <legend className="text-sm font-medium text-zinc-800">Sort roster players by</legend>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="radio"
-                name="publicTeamSort"
-                checked={publicTeamSort === "pickOrder"}
-                onChange={() => setPublicTeamSort("pickOrder")}
+                name="publicRosterSort"
+                checked={publicRosterSort === "pickOrder"}
+                onChange={() => setPublicRosterSort("pickOrder")}
               />
               Pick order
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="radio"
-                name="publicTeamSort"
-                checked={publicTeamSort === "avgRank"}
-                onChange={() => setPublicTeamSort("avgRank")}
+                name="publicRosterSort"
+                checked={publicRosterSort === "calc"}
+                onChange={() => setPublicRosterSort("calc")}
               />
-              Average CALC
+              CALC
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="publicRosterSort"
+                checked={publicRosterSort === "lastName"}
+                onChange={() => setPublicRosterSort("lastName")}
+              />
+              Last name
             </label>
             <p className="text-xs text-zinc-500">
-              Average CALC sorts by roster strength without requiring ranks to be visible.
+              CALC sorting uses roster strength without requiring ranks to be visible.
             </p>
           </fieldset>
         </section>

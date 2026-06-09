@@ -37,7 +37,7 @@ import { isTradeRosterPlayerInactive } from "@/lib/draft/trade-validation";
 import type { QuotaLimits } from "@/lib/draft/quotas";
 import type { PublicBoardVisibility } from "@/lib/draft/public-board";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
-import { sortDraftTeams, type DraftTeamSortMode } from "@/lib/draft/team-sort";
+import { sortRosterPlayers, type DraftRosterSortMode } from "@/lib/draft/roster-sort";
 
 const DEFAULT_VISIBILITY: PublicBoardVisibility = {
   showRanks: true,
@@ -101,13 +101,13 @@ type TeamState = {
     lastName: string;
     link: string | null;
     rank: number;
+    overall: number;
     leaning: string;
     isStarter: boolean;
   }>;
   targetRosterSize: number;
   stats: {
     avgRank: number | null;
-    avgOverall: number | null;
     avgOffensive: number | null;
     avgDefensive: number | null;
     offensiveCount: number;
@@ -136,7 +136,7 @@ type DraftState = {
     displaySettings: {
       hideRanksOnCompleteTeams: boolean;
       showRanksOnCaptainView?: boolean;
-      publicTeamSort?: DraftTeamSortMode;
+      publicRosterSort?: DraftRosterSortMode;
     };
   };
   currentPickNumber: number;
@@ -165,7 +165,7 @@ type Props = {
   captain?: CaptainTvControls;
   visibility?: PublicBoardVisibility;
   linkPlayerProfiles?: boolean;
-  teamSortMode?: DraftTeamSortMode;
+  rosterSortMode?: DraftRosterSortMode;
 };
 
 const TV_PLAYER_AVATAR_SIZE = 36;
@@ -452,6 +452,7 @@ function TeamCard({
   trade,
   captainTeamId,
   teamPendingTrades = [],
+  rosterSortMode = "pickOrder",
 }: {
   team: TeamState;
   isOnClock: boolean;
@@ -466,8 +467,13 @@ function TeamCard({
   trade?: CaptainTradeControls;
   captainTeamId?: string | null;
   teamPendingTrades?: PendingTradeProposal[];
+  rosterSortMode?: DraftRosterSortMode;
 }) {
   const emptySlots = Math.max(0, team.targetRosterSize - team.roster.length);
+  const displayRoster = useMemo(
+    () => sortRosterPlayers(team.roster, rosterSortMode),
+    [rosterSortMode, team.roster],
+  );
   const incomingTrades =
     trade?.pendingTrades.filter((entry) => entry.counterpartyTeamId === team.id) ?? [];
   const outgoingTrades =
@@ -663,7 +669,7 @@ function TeamCard({
             })}
           </div>
         ) : null}
-        {team.roster.map((player) => (
+        {displayRoster.map((player) => (
           <RosterSlot
             key={player.playerId}
             player={player}
@@ -729,7 +735,7 @@ export function DraftBoardTvView({
   captain,
   visibility = DEFAULT_VISIBILITY,
   linkPlayerProfiles = true,
-  teamSortMode = "pickOrder",
+  rosterSortMode = "pickOrder",
 }: Props) {
   const [search, setSearch] = useState("");
   const [poolSort, setPoolSort] = useState<CaptainPoolSortField>(DEFAULT_CAPTAIN_POOL_SORT);
@@ -777,11 +783,6 @@ export function DraftBoardTvView({
   }, [captain, state.teams, state.undrafted]);
 
   const pendingTrades = state.pendingTrades ?? captain?.trade?.pendingTrades ?? [];
-
-  const displayTeams = useMemo(
-    () => sortDraftTeams(state.teams, teamSortMode),
-    [state.teams, teamSortMode],
-  );
 
   const upcomingQueue = state.turnQueue.slice(1);
   const lastPick = state.pickHistory.at(-1) ?? null;
@@ -888,7 +889,7 @@ export function DraftBoardTvView({
             </div>
           </header>
           <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-1">
-            {displayTeams.map((team) => {
+            {state.teams.map((team) => {
               const hideRanks =
                 !showRanks ||
                 (state.draft.displaySettings.hideRanksOnCompleteTeams && team.remainingPicks <= 0);
@@ -909,6 +910,7 @@ export function DraftBoardTvView({
                   teamPendingTrades={pendingTrades.filter(
                     (entry) => entry.counterpartyTeamId === team.id,
                   )}
+                  rosterSortMode={rosterSortMode}
                   ghostPlayers={
                     captain != null && team.id === captain.captainTeamId
                       ? captainGhostPlayers

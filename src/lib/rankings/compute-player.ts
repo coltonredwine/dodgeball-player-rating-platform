@@ -151,28 +151,15 @@ export function parseDraftRankThresholds(json: string | null | undefined): RankT
 }
 
 export function computeTeamStats(
-  rosters: Array<{
-    rank: number;
-    overall: number;
-    displayOffensive: number;
-    displayDefensive: number;
-  }>,
+  rosters: Array<{ rank: number; displayOffensive: number; displayDefensive: number }>,
 ) {
   if (rosters.length === 0) {
-    return {
-      avgRank: null,
-      avgOverall: null,
-      avgOffensive: null,
-      avgDefensive: null,
-      offensiveCount: 0,
-      defensiveCount: 0,
-    };
+    return { avgRank: null, avgOffensive: null, avgDefensive: null, offensiveCount: 0, defensiveCount: 0 };
   }
   const avgRank = roundScore(rosters.reduce((s, p) => s + p.rank, 0) / rosters.length);
-  const avgOverall = roundScore(rosters.reduce((s, p) => s + p.overall, 0) / rosters.length);
   const avgOffensive = roundScore(rosters.reduce((s, p) => s + p.displayOffensive, 0) / rosters.length);
   const avgDefensive = roundScore(rosters.reduce((s, p) => s + p.displayDefensive, 0) / rosters.length);
   const offensiveCount = rosters.filter((p) => p.displayOffensive >= p.displayDefensive).length;
   const defensiveCount = rosters.length - offensiveCount;
-  return { avgRank, avgOverall, avgOffensive, avgDefensive, offensiveCount, defensiveCount };
+  return { avgRank, avgOffensive, avgDefensive, offensiveCount, defensiveCount };
 }
