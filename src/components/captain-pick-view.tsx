@@ -69,6 +69,7 @@ type TeamRow = {
   rankCounts: Record<number, number>;
   stats: {
     avgRank: number | null;
+    avgOverall: number | null;
     avgOffensive: number | null;
     avgDefensive: number | null;
     offensiveCount: number;

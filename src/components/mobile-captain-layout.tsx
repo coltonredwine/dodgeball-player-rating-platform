@@ -37,7 +37,7 @@ type TeamState = {
   targetRosterSize: number;
   quotaNeed: Record<number, number>;
   quotaCap: Record<number, number>;
-  stats: { avgRank: number | null };
+  stats: { avgRank: number | null; avgOverall: number | null };
 };
 
 type PickHistoryEntry = {
