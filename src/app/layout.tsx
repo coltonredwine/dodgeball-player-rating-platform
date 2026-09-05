@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Stonewall Dodgeball Ratings",
+  title: "Player ratings",
   description: "Private rater scoring platform",
 };
 
