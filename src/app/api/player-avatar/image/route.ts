@@ -1,12 +1,12 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import {
   fetchInstagramProfileImage,
   fetchInstagramProfileImageBytes,
   isInstagramProfileUrl,
-  normalizeProfileLink,
   profileLinksMatch,
 } from "@/lib/player-avatar";
 
@@ -83,28 +83,36 @@ const avatarPlayerSelect = {
   avatarImageContentType: true,
 } as const;
 
-async function findPlayerById(playerId: string): Promise<AvatarPlayer | null> {
-  return prisma.player.findUnique({
-    where: { id: playerId },
+async function findPlayerById(
+  playerId: string,
+  leagueId?: string,
+): Promise<AvatarPlayer | null> {
+  return prisma.player.findFirst({
+    where: leagueId ? { id: playerId, leagueId } : { id: playerId },
     select: avatarPlayerSelect,
   });
 }
 
-async function findPlayerByLink(link: string): Promise<AvatarPlayer | null> {
+async function findPlayerByLink(
+  link: string,
+  leagueId?: string,
+): Promise<AvatarPlayer | null> {
   const trimmed = link.trim();
+  const leagueFilter = leagueId ? { leagueId } : {};
   const exact = await prisma.player.findFirst({
-    where: { link: trimmed },
+    where: { link: trimmed, ...leagueFilter },
     select: avatarPlayerSelect,
   });
   if (exact) return exact;
 
-  const normalized = normalizeProfileLink(trimmed);
   const candidates = await prisma.player.findMany({
-    where: { link: { not: null } },
+    where: { link: { not: null }, ...leagueFilter },
     select: avatarPlayerSelect,
   });
 
-  return candidates.find((player) => player.link && profileLinksMatch(player.link, trimmed)) ?? null;
+  return (
+    candidates.find((player) => player.link && profileLinksMatch(player.link, trimmed)) ?? null
+  );
 }
 
 function avatarBytes(player: AvatarPlayer): Buffer | null {
@@ -131,10 +139,13 @@ export async function GET(request: Request) {
   }
 
   try {
+    const session = await getSession();
+    const leagueId = session?.leagueId;
+
     const player = playerId
-      ? await findPlayerById(playerId)
+      ? await findPlayerById(playerId, leagueId)
       : link
-        ? await findPlayerByLink(link)
+        ? await findPlayerByLink(link, leagueId)
         : null;
 
     const cached = player ? avatarBytes(player) : null;

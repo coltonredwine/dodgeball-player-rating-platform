@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getLeagueById } from "@/lib/league";
+import { leaguePath } from "@/lib/league-path";
 
 export function getRequestOrigin(request: Request) {
   const forwardedHost = request.headers.get("x-forwarded-host");
@@ -13,12 +15,27 @@ export function backendRedirect(
   request: Request,
   params?: Record<string, string>,
   path = "/backend",
+  leagueSlug?: string,
 ) {
-  const url = new URL(path, getRequestOrigin(request));
+  const resolvedPath = leagueSlug ? leaguePath(leagueSlug, path) : path;
+  const url = new URL(resolvedPath, getRequestOrigin(request));
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       url.searchParams.set(key, value);
     }
   }
   return NextResponse.redirect(url);
+}
+
+export async function backendRedirectForLeague(
+  request: Request,
+  leagueId: string,
+  params?: Record<string, string>,
+  path = "/backend",
+) {
+  const league = await getLeagueById(leagueId);
+  if (!league) {
+    return NextResponse.redirect(new URL("/login", getRequestOrigin(request)));
+  }
+  return backendRedirect(request, params, path, league.slug);
 }

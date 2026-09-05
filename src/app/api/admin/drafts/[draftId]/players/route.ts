@@ -13,6 +13,9 @@ export async function GET(_request: Request, { params }: Params) {
   const { draftId } = await params;
   const draft = await getDraftRecord(draftId);
   if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (draft.leagueId !== auth.session.leagueId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const poolIds = new Set(draft.players.map((entry) => entry.playerId));
   const draftedIds = new Set(draft.picks.map((pick) => pick.playerId));
@@ -20,6 +23,7 @@ export async function GET(_request: Request, { params }: Params) {
   const poolLocked = draft.status === "complete";
 
   const players = await prisma.player.findMany({
+    where: { leagueId: auth.session.leagueId },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
 

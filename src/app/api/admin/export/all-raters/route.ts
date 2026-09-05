@@ -7,7 +7,12 @@ export async function GET() {
   const auth = await requireAdminLike();
   if (auth.error) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const ratings = await prisma.playerRating.findMany({
+    where: {
+      submission: { leagueId },
+      player: { leagueId },
+    },
     include: {
       player: true,
       submission: { include: { rater: true } },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { DraftCaptainsSection } from "@/components/draft-captains-panel";
 import { DraftPoolSection } from "@/components/draft-pool-panel";
 import { DraftStartersSection } from "@/components/draft-starters-panel";
@@ -16,6 +17,7 @@ import {
 import { assignRank } from "@/lib/rankings/thresholds";
 import { formatRank } from "@/lib/rankings/rank-labels";
 import type { DraftRosterSortMode } from "@/lib/draft/roster-sort";
+import { leaguePath } from "@/lib/league-path";
 
 type RankThresholds = { "2": number; "3": number; "4": number; "5": number };
 
@@ -35,6 +37,8 @@ type Props = {
 };
 
 export function DraftSettingsPanel({ draftId, onSaved }: Props) {
+  const pathname = usePathname();
+  const leagueSlug = pathname?.split("/").filter(Boolean)[0] ?? "";
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [thresholds, setThresholds] = useState<RankThresholds>({
@@ -249,8 +253,10 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
           <h2 className="font-medium">Public draft board</h2>
           <p className="mt-1 text-xs text-zinc-500">
             Share a read-only TV board at{" "}
-            <code className="rounded bg-zinc-100 px-1">/draft/{draftId}/public</code> without requiring
-            login.
+            <code className="rounded bg-zinc-100 px-1">
+              {leaguePath(leagueSlug || "league", `/draft/${draftId}/public`)}
+            </code>{" "}
+            without requiring login.
           </p>
           <label className="mt-4 flex items-center gap-2 text-sm">
             <input

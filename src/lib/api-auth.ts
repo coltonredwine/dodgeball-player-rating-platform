@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AppSession, getSession, resolveSession } from "@/lib/auth";
+import { AppSession, resolveSession } from "@/lib/auth";
 import { isAdminLike, isBackendUser, isSuperadmin } from "@/lib/rbac";
 
 export async function requireBackendUser() {
@@ -24,7 +24,7 @@ export async function requireAdmin() {
 }
 
 export async function requireSuperadmin() {
-  const session = await getSession();
+  const session = await resolveSession();
   if (!session || !isSuperadmin(session)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }

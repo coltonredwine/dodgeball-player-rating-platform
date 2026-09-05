@@ -52,12 +52,14 @@ function ChevronDownIcon({ className }: { className?: string }) {
 function UserMenu({
   displayName,
   leagues,
+  leagueSlug,
   tone,
   teamColor,
   onLogout,
 }: {
   displayName: string;
   leagues: LeagueOption[];
+  leagueSlug: string;
   tone: "light" | "draft-room";
   teamColor?: {
     value: string;
@@ -194,6 +196,7 @@ export function AppNav({
   adminHref,
   displayName,
   leagues,
+  leagueSlug,
   tone = "light",
   draftStatus,
   draftStatusDesktopOnly = false,
@@ -212,15 +215,12 @@ export function AppNav({
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     setMobileMenuOpen(false);
-    router.push("/login");
+    router.push(leagueSlug ? `/${leagueSlug}/login` : "/login");
     router.refresh();
   }
 
   function primaryLinkClass(href: string, compact = false) {
-    const isRate = href === "/rate";
-    const active = isRate
-      ? isNavLinkActive(pathname ?? "", href)
-      : isDraftNavActive(pathname ?? "", href);
+    const active = isNavLinkActive(pathname ?? "", href, leagueSlug);
 
     if (isDraftRoom) {
       return [
@@ -248,7 +248,7 @@ export function AppNav({
   }
 
   function adminLinkClass(compact = false) {
-    const active = isAdminNavActive(pathname ?? "");
+    const active = isAdminNavActive(pathname ?? "", leagueSlug);
     if (isDraftRoom) {
       return [
         compact ? "block rounded px-3 py-2 text-sm" : "px-1 py-2 text-sm font-medium",
@@ -339,6 +339,7 @@ export function AppNav({
           <UserMenu
             displayName={displayName}
             leagues={leagues}
+            leagueSlug={leagueSlug}
             tone={tone}
             teamColor={teamColor}
             onLogout={() => void logout()}

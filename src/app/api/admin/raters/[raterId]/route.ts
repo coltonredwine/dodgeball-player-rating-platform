@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, requireSuperadmin } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
 import { rotateRaterPasscode } from "@/lib/invite-codes";
+import { assertRaterInLeague } from "@/lib/league";
 import { DbRaterRole, parseDbRaterRole } from "@/lib/rater-roles";
 import { isSuperadmin } from "@/lib/rbac";
 
@@ -12,6 +13,7 @@ export async function PATCH(
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const { raterId } = await params;
   const body = (await request.json()) as {
     name?: string;
@@ -21,8 +23,10 @@ export async function PATCH(
     active?: boolean;
   };
 
-  const existing = await prisma.rater.findUnique({ where: { id: raterId } });
-  if (!existing) {
+  let existing;
+  try {
+    existing = await assertRaterInLeague(raterId, leagueId);
+  } catch {
     return NextResponse.json({ error: "Rater not found" }, { status: 404 });
   }
 
@@ -51,7 +55,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
     if (email !== existing.email) {
-      const conflict = await prisma.rater.findUnique({ where: { email } });
+      const conflict = await prisma.rater.findUnique({
+        where: { leagueId_email: { leagueId, email } },
+      });
       if (conflict) {
         return NextResponse.json({ error: "Email already in use" }, { status: 409 });
       }
@@ -97,9 +103,12 @@ export async function DELETE(
   const auth = await requireSuperadmin();
   if (auth.error) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const { raterId } = await params;
-  const existing = await prisma.rater.findUnique({ where: { id: raterId } });
-  if (!existing) {
+
+  try {
+    await assertRaterInLeague(raterId, leagueId);
+  } catch {
     return NextResponse.json({ error: "Rater not found" }, { status: 404 });
   }
 

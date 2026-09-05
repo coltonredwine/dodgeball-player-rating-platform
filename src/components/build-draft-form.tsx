@@ -3,16 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ScrollableListCard } from "@/components/scrollable-list-card";
+import { leaguePath } from "@/lib/league-path";
 
 type Player = { id: string; firstName: string; lastName: string; active: boolean };
 type Rater = { id: string; name: string; active: boolean };
 
 type Props = {
+  leagueSlug: string;
   players: Player[];
   raters: Rater[];
 };
 
-export function BuildDraftForm({ players, raters }: Props) {
+export function BuildDraftForm({ leagueSlug, players, raters }: Props) {
   const router = useRouter();
   const activePlayers = useMemo(() => players.filter((p) => p.active), [players]);
   const activeRaters = useMemo(() => raters.filter((r) => r.active), [raters]);
@@ -78,7 +80,7 @@ export function BuildDraftForm({ players, raters }: Props) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to create draft");
-      router.push(`/backend/drafts/${data.draft.id}`);
+      router.push(leaguePath(leagueSlug, `/backend/drafts/${data.draft.id}`));
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create draft");

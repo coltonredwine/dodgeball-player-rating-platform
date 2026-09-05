@@ -309,7 +309,7 @@ function RaterRow({
 
   const rowClass = `border-t border-zinc-200 ${rater.active ? "" : "bg-zinc-50 text-zinc-500"}`;
   const passcodeVisible = canSeeRaterPasscode(
-    { role: permissions.viewerRole, email: "", name: "" },
+    { role: permissions.viewerRole, email: "", name: "", leagueId: "" },
     rater.role,
   );
 

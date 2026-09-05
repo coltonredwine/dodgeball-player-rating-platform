@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireSuperadmin } from "@/lib/api-auth";
+import { requireSuperadmin } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
 import { rotateRaterPasscode } from "@/lib/invite-codes";
-import { DbRaterRole, parseDbRaterRole } from "@/lib/rater-roles";
-import { isSuperadmin } from "@/lib/rbac";
+import { parseDbRaterRole } from "@/lib/rater-roles";
 
 export async function POST(request: Request) {
   const auth = await requireSuperadmin();
   if (auth.error) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const body = (await request.json()) as {
     name?: string;
     email?: string;
@@ -26,13 +26,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Name and email are required" }, { status: 400 });
   }
 
-  const existing = await prisma.rater.findUnique({ where: { email } });
+  const existing = await prisma.rater.findUnique({
+    where: { leagueId_email: { leagueId, email } },
+  });
   if (existing) {
     return NextResponse.json({ error: "A rater with this email already exists" }, { status: 409 });
   }
 
   const rater = await prisma.rater.create({
     data: {
+      leagueId,
       name,
       email,
       role,

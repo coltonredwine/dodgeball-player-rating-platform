@@ -5,14 +5,21 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DraftDashboardTabs } from "@/components/draft-dashboard-tabs";
 import { DraftSettingsModal } from "@/components/draft-settings-modal";
+import { leaguePath } from "@/lib/league-path";
 
 type Props = {
+  leagueSlug: string;
   draftId: string;
   draftName: string;
   readOnly?: boolean;
 };
 
-export function DraftPageClient({ draftId, draftName, readOnly = false }: Props) {
+export function DraftPageClient({
+  leagueSlug,
+  draftId,
+  draftName,
+  readOnly = false,
+}: Props) {
   const searchParams = useSearchParams();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -29,7 +36,10 @@ export function DraftPageClient({ draftId, draftName, readOnly = false }: Props)
 
   return (
     <>
-      <Link className="text-sm text-blue-700 underline" href="/backend/drafts">
+      <Link
+        className="text-sm text-blue-700 underline"
+        href={leaguePath(leagueSlug, "/backend/drafts")}
+      >
         ← All drafts
       </Link>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -46,6 +56,7 @@ export function DraftPageClient({ draftId, draftName, readOnly = false }: Props)
       </div>
       <DraftDashboardTabs
         key={refreshKey}
+        leagueSlug={leagueSlug}
         draftId={draftId}
         readOnly={readOnly}
         onOpenSettings={readOnly ? undefined : () => setSettingsOpen(true)}

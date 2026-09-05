@@ -3,14 +3,21 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { DraftBoardView, type DraftBoardStatus } from "@/components/draft-board-view";
+import { leaguePath } from "@/lib/league-path";
 
 type Props = {
+  leagueSlug: string;
   draftId: string;
   readOnly?: boolean;
   onOpenSettings?: () => void;
 };
 
-export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: Props) {
+export function DraftAdminPanel({
+  leagueSlug,
+  draftId,
+  readOnly = false,
+  onOpenSettings,
+}: Props) {
   const [isLive, setIsLive] = useState(false);
   const [status, setStatus] = useState("setup");
   const [boardStatus, setBoardStatus] = useState<DraftBoardStatus | null>(null);
@@ -169,7 +176,7 @@ export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: P
               </>
             ) : null}
             <Link
-              href={`/draft/${draftId}/board`}
+              href={leaguePath(leagueSlug, `/draft/${draftId}/board`)}
               className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100"
               target="_blank"
             >
@@ -177,7 +184,7 @@ export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: P
             </Link>
             {publicBoardEnabled ? (
               <Link
-                href={`/draft/${draftId}/public`}
+                href={leaguePath(leagueSlug, `/draft/${draftId}/public`)}
                 className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100"
                 target="_blank"
               >
@@ -186,7 +193,7 @@ export function DraftAdminPanel({ draftId, readOnly = false, onOpenSettings }: P
             ) : null}
             {!readOnly ? (
               <Link
-                href={`/draft/${draftId}/pick`}
+                href={leaguePath(leagueSlug, `/draft/${draftId}/pick`)}
                 className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-100"
                 target="_blank"
               >

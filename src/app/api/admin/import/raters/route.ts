@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireSuperadmin } from "@/lib/api-auth";
 import { parseCsv } from "@/lib/csv";
-import { backendRedirect } from "@/lib/request-url";
+import { backendRedirectForLeague } from "@/lib/request-url";
 import { DbRaterRole, parseDbRaterRole } from "@/lib/rater-roles";
 
 type RaterImportRow = {
@@ -54,10 +54,11 @@ function defaultExpiry() {
 }
 
 export async function POST(request: Request) {
-  try {
-    const auth = await requireSuperadmin();
-    if (auth.error) return auth.error;
+  const auth = await requireSuperadmin();
+  if (auth.error) return auth.error;
 
+  try {
+    const leagueId = auth.session.leagueId;
     const formData = await request.formData();
     const file = formData.get("file");
     if (!(file instanceof File)) {
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
 
     for (const row of prepared) {
       const rater = await prisma.rater.upsert({
-        where: { email: row.email },
+        where: { leagueId_email: { leagueId, email: row.email } },
         update: {
           name: row.name,
           role: row.role,
@@ -130,6 +131,7 @@ export async function POST(request: Request) {
           ...(row.passcode ? { passcodeDisplay: row.passcode } : {}),
         },
         create: {
+          leagueId,
           name: row.name,
           email: row.email,
           role: row.role,
@@ -158,11 +160,11 @@ export async function POST(request: Request) {
     if (errors.length) {
       redirectParams.importWarnings = String(errors.length);
     }
-    return backendRedirect(request, redirectParams);
+    return backendRedirectForLeague(request, auth.session.leagueId, redirectParams);
   } catch (error) {
     console.error("Rater import failed:", error);
     const message =
       error instanceof Error ? error.message : "Unexpected error during import";
-    return backendRedirect(request, { importError: message });
+    return backendRedirectForLeague(request, auth.session.leagueId, { importError: message });
   }
 }

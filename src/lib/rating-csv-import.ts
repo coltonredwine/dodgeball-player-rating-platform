@@ -140,13 +140,21 @@ export function mergeCsvIntoRatingRows(csvText: string, currentRows: ImportableR
 
   const dataRows = resolveDataRows(rawRows);
   const byId = new Map(currentRows.map((row) => [row.playerId, { ...row }]));
+  const byName = new Map(
+    currentRows.map((row) => [
+      playerIdFromNames(row.firstName, row.lastName),
+      row.playerId,
+    ]),
+  );
   let updatedCount = 0;
 
   for (const row of dataRows) {
     if (!isValidDataRow(row)) continue;
 
     const parsed = parseDataRow(row);
-    const playerId = playerIdFromNames(parsed.firstName, parsed.lastName);
+    const nameKey = playerIdFromNames(parsed.firstName, parsed.lastName);
+    const playerId = byName.get(nameKey);
+    if (!playerId) continue;
     const existing = byId.get(playerId);
     if (!existing) continue;
 

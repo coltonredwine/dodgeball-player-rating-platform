@@ -14,8 +14,12 @@ export async function GET(_request: Request, { params }: Params) {
   const { draftId } = await params;
   const draft = await getDraftRecord(draftId);
   if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (draft.leagueId !== auth.session.leagueId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const raters = await prisma.rater.findMany({
+    where: { leagueId: auth.session.leagueId },
     orderBy: { name: "asc" },
     select: { id: true, name: true, active: true },
   });

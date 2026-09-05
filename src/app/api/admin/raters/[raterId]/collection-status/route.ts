@@ -6,6 +6,7 @@ import {
   syncCollectedSubmissionsForNewPlayers,
   updateRaterCollectionStatus,
 } from "@/lib/collection";
+import { assertRaterInLeague } from "@/lib/league";
 
 const VALID_STATUSES = new Set<string>(Object.values(CollectionStatus));
 
@@ -16,7 +17,15 @@ export async function PATCH(
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const { raterId } = await params;
+
+  try {
+    await assertRaterInLeague(raterId, leagueId);
+  } catch {
+    return NextResponse.json({ error: "Rater not found" }, { status: 404 });
+  }
+
   const body = (await request.json()) as { status?: string };
   const status = body.status;
 
@@ -24,11 +33,12 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid collection status" }, { status: 400 });
   }
 
-  const activePlayerCount = await getActivePlayerCount();
-  await syncCollectedSubmissionsForNewPlayers(activePlayerCount);
+  const activePlayerCount = await getActivePlayerCount(leagueId);
+  await syncCollectedSubmissionsForNewPlayers(leagueId, activePlayerCount);
 
   const submission = await updateRaterCollectionStatus(
     raterId,
+    leagueId,
     status as CollectionStatus,
     activePlayerCount,
   );

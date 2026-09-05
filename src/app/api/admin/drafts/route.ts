@@ -23,7 +23,9 @@ export async function GET() {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const drafts = await prisma.draft.findMany({
+    where: { leagueId },
     orderBy: { createdAt: "desc" },
     include: {
       teams: { include: { rater: true } },
@@ -38,6 +40,7 @@ export async function POST(request: Request) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const body = await request.json();
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
@@ -49,7 +52,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Captain count must match team count" }, { status: 400 });
   }
 
-  const seasonLabel = await getSeasonLabel();
-  const draft = await createDraft({ name, seasonLabel, teamCount, playerIds, captains });
+  const seasonLabel = await getSeasonLabel(leagueId);
+  const draft = await createDraft({
+    leagueId,
+    name,
+    seasonLabel,
+    teamCount,
+    playerIds,
+    captains,
+  });
   return NextResponse.json({ draft }, { status: 201 });
 }

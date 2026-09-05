@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, requireSuperadmin } from "@/lib/api-auth";
 import { parseOptionalLink } from "@/lib/csv";
 import { prisma } from "@/lib/db";
+import { assertPlayerInLeague } from "@/lib/league";
 import { isSuperadmin } from "@/lib/rbac";
 import { syncCollectedSubmissionsForNewPlayers } from "@/lib/collection";
 
@@ -12,6 +13,7 @@ export async function PATCH(
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const { playerId } = await params;
   const body = (await request.json()) as {
     firstName?: string;
@@ -20,8 +22,10 @@ export async function PATCH(
     active?: boolean;
   };
 
-  const existing = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!existing) {
+  let existing;
+  try {
+    existing = await assertPlayerInLeague(playerId, leagueId);
+  } catch {
     return NextResponse.json({ error: "Player not found" }, { status: 404 });
   }
 
@@ -60,7 +64,7 @@ export async function PATCH(
   });
 
   if (player.active) {
-    await syncCollectedSubmissionsForNewPlayers();
+    await syncCollectedSubmissionsForNewPlayers(leagueId);
   }
 
   return NextResponse.json({ player });
@@ -73,9 +77,12 @@ export async function DELETE(
   const auth = await requireSuperadmin();
   if (auth.error) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const { playerId } = await params;
-  const existing = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!existing) {
+
+  try {
+    await assertPlayerInLeague(playerId, leagueId);
+  } catch {
     return NextResponse.json({ error: "Player not found" }, { status: 404 });
   }
 

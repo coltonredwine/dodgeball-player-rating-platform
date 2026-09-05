@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { playerIdFromNames } from "@/lib/players";
 import { requireSuperadmin } from "@/lib/api-auth";
 import { parseCsv, parseOptionalLink } from "@/lib/csv";
-import { backendRedirect } from "@/lib/request-url";
+import { backendRedirectForLeague } from "@/lib/request-url";
 import { syncCollectedSubmissionsForNewPlayers } from "@/lib/collection";
 
 type PlayerImportRow = {
@@ -20,6 +19,7 @@ export async function POST(request: Request) {
   const auth = await requireSuperadmin();
   if (auth.error) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const formData = await request.formData();
   const file = formData.get("file");
   if (!(file instanceof File)) {
@@ -58,34 +58,49 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No valid rows found", details: errors }, { status: 400 });
   }
 
-  await prisma.$transaction([
-    prisma.player.updateMany({ data: { active: false } }),
-    ...normalized.map((row) => {
-      const id = playerIdFromNames(row.firstName, row.lastName);
-      return prisma.player.upsert({
-        where: { id },
-        update: {
-          firstName: row.firstName,
-          lastName: row.lastName,
-          link: row.link,
-          active: true,
-        },
-        create: {
-          id,
-          firstName: row.firstName,
-          lastName: row.lastName,
-          link: row.link,
-          active: true,
+  await prisma.$transaction(async (tx) => {
+    await tx.player.updateMany({
+      where: { leagueId },
+      data: { active: false },
+    });
+
+    for (const row of normalized) {
+      const existing = await tx.player.findFirst({
+        where: {
+          leagueId,
+          firstName: { equals: row.firstName, mode: "insensitive" },
+          lastName: { equals: row.lastName, mode: "insensitive" },
         },
       });
-    }),
-  ]);
+      if (existing) {
+        await tx.player.update({
+          where: { id: existing.id },
+          data: {
+            firstName: row.firstName,
+            lastName: row.lastName,
+            link: row.link,
+            active: true,
+          },
+        });
+      } else {
+        await tx.player.create({
+          data: {
+            leagueId,
+            firstName: row.firstName,
+            lastName: row.lastName,
+            link: row.link,
+            active: true,
+          },
+        });
+      }
+    }
+  });
 
-  await syncCollectedSubmissionsForNewPlayers(normalized.length);
+  await syncCollectedSubmissionsForNewPlayers(leagueId, normalized.length);
 
   const redirectParams: Record<string, string> = {};
   if (errors.length) {
     redirectParams.importWarnings = String(errors.length);
   }
-  return backendRedirect(request, redirectParams);
+  return backendRedirectForLeague(request, auth.session.leagueId, redirectParams);
 }

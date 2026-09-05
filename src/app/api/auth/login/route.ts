@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { createSession, getSuperadminIdentity } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { findLeagueBySlug, normalizeLeagueSlug } from "@/lib/league";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { dbRoleToSessionRole } from "@/lib/rbac";
 
@@ -10,24 +11,35 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       email?: string;
       passcode?: string;
+      leagueSlug?: string;
     };
 
     const email = body.email?.trim().toLowerCase();
     const passcode = body.passcode?.trim();
+    const leagueSlug = normalizeLeagueSlug(body.leagueSlug ?? "");
 
-    if (!email || !passcode) {
-      return NextResponse.json({ error: "Email and passcode are required" }, { status: 400 });
+    if (!email || !passcode || !leagueSlug) {
+      return NextResponse.json(
+        { error: "League code, email, and passcode are required" },
+        { status: 400 },
+      );
     }
 
-    const limiter = checkRateLimit(`login:${email}`, 12, 15 * 60 * 1000);
+    const limiter = checkRateLimit(`login:${leagueSlug}:${email}`, 12, 15 * 60 * 1000);
     if (!limiter.ok) {
       return NextResponse.json({ error: "Too many attempts. Try later." }, { status: 429 });
+    }
+
+    const league = await findLeagueBySlug(leagueSlug);
+    if (!league) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
     const superadmin = getSuperadminIdentity();
     if (email === superadmin.email.toLowerCase() && passcode === superadmin.passcode) {
       await createSession({
         role: "superadmin",
+        leagueId: league.id,
         email: superadmin.email.toLowerCase(),
         name: "Superadmin",
       });
@@ -35,7 +47,7 @@ export async function POST(request: Request) {
     }
 
     const rater = await prisma.rater.findUnique({
-      where: { email },
+      where: { leagueId_email: { leagueId: league.id, email } },
       include: { inviteCodes: true },
     });
     if (!rater || !rater.active) {
@@ -62,6 +74,7 @@ export async function POST(request: Request) {
     await createSession({
       role: dbRoleToSessionRole(rater.role),
       raterId: rater.id,
+      leagueId: league.id,
       email: rater.email,
       name: rater.name,
     });

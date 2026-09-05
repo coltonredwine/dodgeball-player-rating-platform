@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/api-auth";
 import { parseOptionalLink } from "@/lib/csv";
 import { prisma } from "@/lib/db";
-import { playerIdFromNames } from "@/lib/players";
+import { findPlayerByNamesInLeague } from "@/lib/players";
 import { syncCollectedSubmissionsForNewPlayers } from "@/lib/collection";
 
 export async function POST(request: Request) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const body = (await request.json()) as {
     firstName?: string;
     lastName?: string;
@@ -28,15 +29,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid link URL" }, { status: 400 });
   }
 
-  const id = playerIdFromNames(firstName, lastName);
-  const existing = await prisma.player.findUnique({ where: { id } });
+  const existing = await findPlayerByNamesInLeague(leagueId, firstName, lastName);
   if (existing) {
     return NextResponse.json({ error: "A player with this name already exists" }, { status: 409 });
   }
 
   const player = await prisma.player.create({
     data: {
-      id,
+      leagueId,
       firstName,
       lastName,
       link,
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   });
 
   if (player.active) {
-    await syncCollectedSubmissionsForNewPlayers();
+    await syncCollectedSubmissionsForNewPlayers(leagueId);
   }
 
   return NextResponse.json({ player });

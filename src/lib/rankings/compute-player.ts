@@ -24,6 +24,7 @@ type RatingRow = {
 };
 
 export async function loadSeasonRatingsForPlayers(
+  leagueId: string,
   seasonLabel: string,
   playerIds: string[],
 ): Promise<Map<string, RatingRow[]>> {
@@ -31,6 +32,7 @@ export async function loadSeasonRatingsForPlayers(
 
   const submissions = await prisma.ratingSubmission.findMany({
     where: {
+      leagueId,
       seasonLabel,
       ratings: { some: { playerId: { in: playerIds }, unknownPlayer: false } },
     },

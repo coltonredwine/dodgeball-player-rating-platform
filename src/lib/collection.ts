@@ -8,17 +8,21 @@ export const COLLECTION_STATUS_OPTIONS: { value: CollectionStatus; label: string
   { value: "partially_collected", label: "Partially collected" },
 ];
 
-export async function getActivePlayerCount() {
-  return prisma.player.count({ where: { active: true } });
+export async function getActivePlayerCount(leagueId: string) {
+  return prisma.player.count({ where: { leagueId, active: true } });
 }
 
 /** Downgrade collected submissions when new active players were added. */
-export async function syncCollectedSubmissionsForNewPlayers(activePlayerCount?: number) {
-  const count = activePlayerCount ?? (await getActivePlayerCount());
+export async function syncCollectedSubmissionsForNewPlayers(
+  leagueId: string,
+  activePlayerCount?: number,
+) {
+  const count = activePlayerCount ?? (await getActivePlayerCount(leagueId));
   const now = new Date();
 
   await prisma.ratingSubmission.updateMany({
     where: {
+      leagueId,
       collectionStatus: CollectionStatus.collected,
       collectedActivePlayerCount: { lt: count },
     },
@@ -59,10 +63,11 @@ export function formatTimestamp(date: Date | string | null | undefined): string 
 
 export async function updateRaterCollectionStatus(
   raterId: string,
+  leagueId: string,
   status: CollectionStatus,
   activePlayerCount: number,
 ) {
-  const submission = await getOrCreateSubmission(raterId);
+  const submission = await getOrCreateSubmission(raterId, leagueId);
   const now = new Date();
 
   if (status === CollectionStatus.not_collected) {

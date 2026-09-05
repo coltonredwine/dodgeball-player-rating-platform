@@ -3,11 +3,11 @@ import { getOrCreateSubmission } from "@/lib/rating";
 import { mergeCsvIntoRatingRows, type ImportableRatingRow } from "@/lib/rating-csv-import";
 import { normalizeRatingRow } from "@/lib/validation";
 
-export async function buildActivePlayerRatingRows(raterId: string) {
-  const submission = await getOrCreateSubmission(raterId);
+export async function buildActivePlayerRatingRows(raterId: string, leagueId: string) {
+  const submission = await getOrCreateSubmission(raterId, leagueId);
   const [players, existing] = await Promise.all([
     prisma.player.findMany({
-      where: { active: true },
+      where: { leagueId, active: true },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     prisma.playerRating.findMany({ where: { submissionId: submission.id } }),
@@ -98,8 +98,12 @@ export async function saveRatingRowsForSubmission(
   });
 }
 
-export async function importRaterScoresFromCsv(raterId: string, csvText: string) {
-  const { submission, rows } = await buildActivePlayerRatingRows(raterId);
+export async function importRaterScoresFromCsv(
+  raterId: string,
+  leagueId: string,
+  csvText: string,
+) {
+  const { submission, rows } = await buildActivePlayerRatingRows(raterId, leagueId);
   const result = mergeCsvIntoRatingRows(csvText, rows);
 
   if (result.formatError) {
@@ -110,8 +114,8 @@ export async function importRaterScoresFromCsv(raterId: string, csvText: string)
   return { ok: true as const, updatedCount: result.updatedCount };
 }
 
-export async function resetRaterScores(raterId: string) {
-  const submission = await getOrCreateSubmission(raterId);
+export async function resetRaterScores(raterId: string, leagueId: string) {
+  const submission = await getOrCreateSubmission(raterId, leagueId);
 
   await prisma.$transaction([
     prisma.playerRating.deleteMany({ where: { submissionId: submission.id } }),
@@ -127,8 +131,8 @@ export async function resetRaterScores(raterId: string) {
   ]);
 }
 
-export async function setRaterAdminLocked(raterId: string, locked: boolean) {
-  const submission = await getOrCreateSubmission(raterId);
+export async function setRaterAdminLocked(raterId: string, leagueId: string, locked: boolean) {
+  const submission = await getOrCreateSubmission(raterId, leagueId);
   return prisma.ratingSubmission.update({
     where: { id: submission.id },
     data: { adminLocked: locked },

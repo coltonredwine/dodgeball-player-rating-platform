@@ -1,8 +1,12 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { resolveSession } from "@/lib/auth";
+import { getLeagueById } from "@/lib/league";
+import { leaguePath } from "@/lib/league-routes";
 
 export default async function Home() {
-  const session = await getSession();
+  const session = await resolveSession();
   if (!session) redirect("/login");
-  redirect("/rate");
+  const league = await getLeagueById(session.leagueId);
+  if (!league) redirect("/login");
+  redirect(leaguePath(league.slug, "/rate"));
 }

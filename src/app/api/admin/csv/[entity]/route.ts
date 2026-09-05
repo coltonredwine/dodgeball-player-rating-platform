@@ -16,6 +16,7 @@ export async function GET(
   const auth = await requireSuperadmin();
   if (auth.error) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const { entity } = await params;
   const kind = new URL(request.url).searchParams.get("kind") as Kind | null;
 
@@ -35,7 +36,7 @@ export async function GET(
     }
 
     const players = await prisma.player.findMany({
-      where: { active: true },
+      where: { leagueId, active: true },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     });
     const rows = players.map((p) => [p.firstName, p.lastName, p.link ?? ""]);
@@ -48,7 +49,7 @@ export async function GET(
   }
 
   const raters = await prisma.rater.findMany({
-    where: { active: true },
+    where: { leagueId, active: true },
     orderBy: { name: "asc" },
   });
   const rows = raters.map((r) => [r.name, r.email, r.role, "", ""]);

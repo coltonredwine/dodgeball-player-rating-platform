@@ -3,8 +3,9 @@ import {
   countOpenDrafts,
   getCaptainAssignmentsForRater,
 } from "@/lib/draft/service";
+import { getLeagueById } from "@/lib/league";
+import { leaguePath, stripLeaguePrefix } from "@/lib/league-path";
 import { isAdminLike, isBackendUser, isManager } from "@/lib/rbac";
-import { getSeasonLabel } from "@/lib/settings";
 
 export type NavLink = {
   href: string;
@@ -22,42 +23,47 @@ export type AppNavData = {
   adminHref: string;
   displayName: string;
   leagueLabel: string;
+  leagueSlug: string;
   leagues: LeagueOption[];
 };
 
 export async function getAppNavData(session: AppSession): Promise<AppNavData> {
-  const leagueLabel = await getSeasonLabel();
+  const league = await getLeagueById(session.leagueId);
+  const leagueLabel = league?.name ?? "League";
+  const leagueSlug = league?.slug ?? "";
   const leagues: LeagueOption[] = [{ label: leagueLabel }];
+  const path = (p: string) => leaguePath(leagueSlug, p);
 
-  const primaryLinks: NavLink[] = [{ href: "/rate", label: "Rate" }];
+  const primaryLinks: NavLink[] = [{ href: path("/rate"), label: "Rate" }];
 
   if (isAdminLike(session)) {
-    primaryLinks.push({ href: "/backend/drafts", label: "Draft" });
+    primaryLinks.push({ href: path("/backend/drafts"), label: "Draft" });
   } else if (isManager(session)) {
-    const openCount = await countOpenDrafts();
+    const openCount = await countOpenDrafts(session.leagueId);
     if (openCount > 0) {
-      primaryLinks.push({ href: "/backend/drafts", label: "Draft" });
+      primaryLinks.push({ href: path("/backend/drafts"), label: "Draft" });
     }
   } else if (session.raterId) {
     const assignments = await getCaptainAssignmentsForRater(session.raterId);
     if (assignments.length === 1) {
       primaryLinks.push({
-        href: `/draft/${assignments[0].draftId}/pick`,
+        href: path(`/draft/${assignments[0].draftId}/pick`),
         label: "Draft",
       });
     } else if (assignments.length > 1) {
-      primaryLinks.push({ href: "/draft", label: "Draft" });
+      primaryLinks.push({ href: path("/draft"), label: "Draft" });
     }
   } else if (isBackendUser(session)) {
-    primaryLinks.push({ href: "/backend/drafts", label: "Draft" });
+    primaryLinks.push({ href: path("/backend/drafts"), label: "Draft" });
   }
 
   return {
     primaryLinks,
     showAdmin: isBackendUser(session),
-    adminHref: "/backend",
+    adminHref: path("/backend"),
     displayName: session.name || session.email,
     leagueLabel,
+    leagueSlug,
     leagues,
   };
 }
@@ -70,30 +76,44 @@ export async function getNavLinks(session: AppSession): Promise<NavLink[]> {
   return links;
 }
 
-export function isNavLinkActive(pathname: string, href: string): boolean {
-  if (href === "/rate") return pathname === "/rate";
-  if (href === "/backend") {
-    return pathname.startsWith("/backend");
+export function isNavLinkActive(
+  pathname: string,
+  href: string,
+  leagueSlug?: string,
+): boolean {
+  const path = leagueSlug ? stripLeaguePrefix(pathname, leagueSlug) : pathname;
+  const target = leagueSlug ? stripLeaguePrefix(href, leagueSlug) : href;
+
+  if (target === "/rate") return path === "/rate";
+  if (target === "/backend") {
+    return path.startsWith("/backend");
   }
-  if (href === "/draft") {
-    return pathname === "/draft" || pathname.startsWith("/draft/");
+  if (target === "/draft") {
+    return path === "/draft" || path.startsWith("/draft/");
   }
-  if (href.startsWith("/draft/")) {
-    return pathname === href || pathname.startsWith(`${href}/`);
+  if (target.startsWith("/draft/")) {
+    return path === target || path.startsWith(`${target}/`);
   }
-  if (href.startsWith("/backend/drafts")) {
-    return pathname.startsWith("/backend/drafts");
+  if (target.startsWith("/backend/drafts")) {
+    return path.startsWith("/backend/drafts");
   }
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return path === target || path.startsWith(`${target}/`);
 }
 
-export function isDraftNavActive(pathname: string, draftHref: string): boolean {
-  if (draftHref === "/draft") {
-    return pathname === "/draft" || pathname.startsWith("/draft/");
+export function isDraftNavActive(
+  pathname: string,
+  draftHref: string,
+  leagueSlug?: string,
+): boolean {
+  const path = leagueSlug ? stripLeaguePrefix(pathname, leagueSlug) : pathname;
+  const target = leagueSlug ? stripLeaguePrefix(draftHref, leagueSlug) : draftHref;
+  if (target === "/draft") {
+    return path === "/draft" || path.startsWith("/draft/");
   }
-  return isNavLinkActive(pathname, draftHref);
+  return isNavLinkActive(pathname, draftHref, leagueSlug);
 }
 
-export function isAdminNavActive(pathname: string): boolean {
-  return pathname.startsWith("/backend");
+export function isAdminNavActive(pathname: string, leagueSlug?: string): boolean {
+  const path = leagueSlug ? stripLeaguePrefix(pathname, leagueSlug) : pathname;
+  return path.startsWith("/backend");
 }

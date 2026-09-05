@@ -10,6 +10,7 @@ export type { SessionRole };
 export type AppSession = {
   role: SessionRole;
   raterId?: string;
+  leagueId: string;
   email: string;
   name: string;
 };
@@ -22,6 +23,18 @@ function getJwtSecret() {
     throw new Error("SESSION_SECRET is required");
   }
   return new TextEncoder().encode(secret);
+}
+
+function isValidSessionPayload(payload: unknown): payload is AppSession {
+  if (!payload || typeof payload !== "object") return false;
+  const value = payload as Record<string, unknown>;
+  return (
+    typeof value.leagueId === "string" &&
+    value.leagueId.length > 0 &&
+    typeof value.email === "string" &&
+    typeof value.name === "string" &&
+    typeof value.role === "string"
+  );
 }
 
 export async function createSession(session: AppSession) {
@@ -52,7 +65,14 @@ export async function getSession(): Promise<AppSession | null> {
 
   try {
     const verified = await jwtVerify(token, getJwtSecret());
-    return verified.payload as AppSession;
+    if (!isValidSessionPayload(verified.payload)) return null;
+    return {
+      role: verified.payload.role as SessionRole,
+      raterId: typeof verified.payload.raterId === "string" ? verified.payload.raterId : undefined,
+      leagueId: verified.payload.leagueId,
+      email: verified.payload.email,
+      name: verified.payload.name,
+    };
   } catch {
     return null;
   }
@@ -62,13 +82,22 @@ export async function getSession(): Promise<AppSession | null> {
 export async function resolveSession(): Promise<AppSession | null> {
   const session = await getSession();
   if (!session) return null;
-  if (!session.raterId) return session;
 
-  const rater = await prisma.rater.findUnique({ where: { id: session.raterId } });
+  const league = await prisma.league.findUnique({ where: { id: session.leagueId } });
+  if (!league) return null;
+
+  if (!session.raterId) {
+    return { ...session, leagueId: league.id };
+  }
+
+  const rater = await prisma.rater.findFirst({
+    where: { id: session.raterId, leagueId: session.leagueId },
+  });
   if (!rater || !rater.active) return null;
 
   return {
     ...session,
+    leagueId: league.id,
     role: dbRoleToSessionRole(rater.role),
     name: rater.name,
     email: rater.email,

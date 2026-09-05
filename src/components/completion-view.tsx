@@ -8,6 +8,7 @@ import {
   COLLECTION_STATUS_OPTIONS,
   formatTimestamp,
 } from "@/lib/collection";
+import { leaguePath } from "@/lib/league-path";
 import type { CollectionStatus } from "@prisma/client";
 
 export type CompletionViewRow = {
@@ -30,6 +31,7 @@ type Tally = {
 };
 
 type Props = {
+  leagueSlug: string;
   rows: CompletionViewRow[];
   tally: Tally;
   canEditCollection: boolean;
@@ -39,6 +41,7 @@ type Props = {
 type ActionTarget = CompletionViewRow | null;
 
 export function CompletionView({
+  leagueSlug,
   rows,
   tally,
   canEditCollection,
@@ -250,7 +253,7 @@ export function CompletionView({
                     {row.hasAnySavedRows ? (
                       <Link
                         className="text-[11px] font-medium text-blue-700 underline hover:text-blue-900"
-                        href={`/backend/rater/${row.raterId}`}
+                        href={leaguePath(leagueSlug, `/backend/rater/${row.raterId}`)}
                       >
                         View scores
                       </Link>

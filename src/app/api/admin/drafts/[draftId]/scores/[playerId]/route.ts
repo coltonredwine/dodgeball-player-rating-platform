@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireBackendUser } from "@/lib/api-auth";
+import { requireBackendUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
 import {
   parseDraftRankThresholds,
@@ -14,9 +14,10 @@ export async function GET(_request: Request, { params }: Params) {
   const auth = await requireBackendUser();
   if ("error" in auth) return auth.error;
 
+  const leagueId = auth.session.leagueId;
   const { draftId, playerId } = await params;
-  const draft = await prisma.draft.findUnique({
-    where: { id: draftId },
+  const draft = await prisma.draft.findFirst({
+    where: { id: draftId, leagueId },
     include: {
       scoreExclusions: { where: { playerId } },
       scoreOverrides: { where: { playerId } },
@@ -24,11 +25,14 @@ export async function GET(_request: Request, { params }: Params) {
   });
   if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const ratingsMap = await loadSeasonRatingsForPlayers(draft.seasonLabel, [playerId]);
+  const ratingsMap = await loadSeasonRatingsForPlayers(draft.leagueId, draft.seasonLabel, [
+    playerId,
+  ]);
   const ratings = ratingsMap.get(playerId) ?? [];
 
   const submissions = await prisma.ratingSubmission.findMany({
     where: {
+      leagueId: draft.leagueId,
       seasonLabel: draft.seasonLabel,
       raterId: { in: ratings.map((r) => r.raterId) },
     },

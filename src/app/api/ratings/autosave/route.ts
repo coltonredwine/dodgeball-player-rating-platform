@@ -24,7 +24,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (await isSubmissionScoringLocked(submissionId, await isScoringOpen())) {
+  if (submission.leagueId !== session.leagueId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (await isSubmissionScoringLocked(submissionId, await isScoringOpen(submission.leagueId))) {
     return NextResponse.json({ error: "Scoring is closed" }, { status: 403 });
   }
 

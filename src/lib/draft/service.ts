@@ -151,7 +151,11 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
   const playerIds = draft.players.map((p) => p.playerId);
   const thresholds = parseDraftRankThresholds(draft.rankThresholds);
   const displaySettings = parseDisplaySettings(draft.displaySettings);
-  const ratingsByPlayer = await loadSeasonRatingsForPlayers(draft.seasonLabel, playerIds);
+  const ratingsByPlayer = await loadSeasonRatingsForPlayers(
+    draft.leagueId,
+    draft.seasonLabel,
+    playerIds,
+  );
 
   const exclusionsByPlayer = new Map<string, Set<string>>();
   for (const exclusion of draft.scoreExclusions) {
@@ -426,6 +430,7 @@ export function computeCanPickByTeamId(state: DraftState): Record<string, boolea
 }
 
 export async function createDraft(input: {
+  leagueId: string;
   name: string;
   seasonLabel: string;
   teamCount: number;
@@ -434,6 +439,7 @@ export async function createDraft(input: {
 }) {
   return prisma.draft.create({
     data: {
+      leagueId: input.leagueId,
       name: input.name.trim(),
       seasonLabel: input.seasonLabel,
       teamCount: input.teamCount,
@@ -867,6 +873,6 @@ export function isDraftOpen(draft: { status: string }) {
   return draft.status !== "complete";
 }
 
-export async function countOpenDrafts() {
-  return prisma.draft.count({ where: { status: { not: "complete" } } });
+export async function countOpenDrafts(leagueId: string) {
+  return prisma.draft.count({ where: { leagueId, status: { not: "complete" } } });
 }

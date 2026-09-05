@@ -1,4 +1,9 @@
-import { getBooleanSetting, getStringSetting, setBooleanSetting, setStringSetting } from "@/lib/settings";
+import {
+  getBooleanSetting,
+  getStringSetting,
+  setBooleanSetting,
+  setStringSetting,
+} from "@/lib/settings";
 
 export const SCORING_OPEN_KEY = "scoring_open";
 export const SCORING_CLOSE_AT_KEY = "scoring_close_at";
@@ -26,14 +31,14 @@ export function formatCloseAtDisplay(iso: string): string | null {
   return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
-export async function getScoringCloseAt(): Promise<string> {
-  return getStringSetting(SCORING_CLOSE_AT_KEY, "");
+export async function getScoringCloseAt(leagueId: string): Promise<string> {
+  return getStringSetting(leagueId, SCORING_CLOSE_AT_KEY, "");
 }
 
-export async function isScoringOpen(): Promise<boolean> {
+export async function isScoringOpen(leagueId: string): Promise<boolean> {
   const [manualOpen, closeAtRaw] = await Promise.all([
-    getBooleanSetting(SCORING_OPEN_KEY, true),
-    getScoringCloseAt(),
+    getBooleanSetting(leagueId, SCORING_OPEN_KEY, true),
+    getScoringCloseAt(leagueId),
   ]);
 
   if (!manualOpen) return false;
@@ -45,7 +50,11 @@ export async function isScoringOpen(): Promise<boolean> {
   return Date.now() < closeAt.getTime();
 }
 
-export async function saveScoringWindowSettings(manualOpen: boolean, closeAtIso: string | null) {
-  await setBooleanSetting(SCORING_OPEN_KEY, manualOpen);
-  await setStringSetting(SCORING_CLOSE_AT_KEY, closeAtIso ?? "");
+export async function saveScoringWindowSettings(
+  leagueId: string,
+  manualOpen: boolean,
+  closeAtIso: string | null,
+) {
+  await setBooleanSetting(leagueId, SCORING_OPEN_KEY, manualOpen);
+  await setStringSetting(leagueId, SCORING_CLOSE_AT_KEY, closeAtIso ?? "");
 }

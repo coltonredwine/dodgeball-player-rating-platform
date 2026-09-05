@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
+import { leaguePath } from "@/lib/league-path";
 
 type Props = {
   title: string;
@@ -10,6 +12,8 @@ type Props = {
 };
 
 export function CsvImportPanel({ title, importAction, entity }: Props) {
+  const pathname = usePathname();
+  const leagueSlug = pathname?.split("/").filter(Boolean)[0] ?? "";
   const base = `/api/admin/csv/${entity}`;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +52,7 @@ export function CsvImportPanel({ title, importAction, entity }: Props) {
         return;
       }
 
-      window.location.assign("/backend");
+      window.location.assign(leaguePath(leagueSlug || "league", "/backend"));
     } catch {
       setError("Upload failed. Check your connection and try again.");
     } finally {
