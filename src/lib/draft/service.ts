@@ -18,6 +18,15 @@ import {
   pickNumberToRound,
 } from "@/lib/draft/snake";
 import {
+  allocateOffClockPickNumber,
+  buildLowestAverageTurnQueue,
+  findNextLowestAverageSlot,
+  parsePickOrderMode,
+  rosterAverageOverall,
+  type DraftPickOrderMode,
+  type TeamPickEligibility,
+} from "@/lib/draft/pick-order";
+import {
   computeTeamStats,
   loadSeasonRatingsForPlayers,
   parseDraftRankThresholds,
@@ -84,6 +93,7 @@ export type DraftState = {
     teamCount: number;
     minQuotasEnabled: boolean;
     maxQuotasEnabled: boolean;
+    pickOrderMode: DraftPickOrderMode;
     rankThresholds: ReturnType<typeof parseDraftRankThresholds>;
     displaySettings: ReturnType<typeof parseDisplaySettings>;
   };
@@ -110,9 +120,87 @@ export function computePoolPickSlots(draft: {
 }
 
 function isDraftFullyAssigned(state: DraftState): boolean {
-  return (
-    state.undrafted.length === 0 &&
-    state.teams.every((team) => team.remainingPicks <= 0)
+  return state.undrafted.length === 0;
+}
+
+function usedPickNumbersFromDraft(draft: { picks: Array<{ pickNumber: number }> }) {
+  return new Set(draft.picks.map((pick) => pick.pickNumber));
+}
+
+function teamEligibilityFromState(state: DraftState): TeamPickEligibility[] {
+  return state.teams.map((team) => ({
+    id: team.id,
+    pickOrder: team.pickOrder,
+    remainingPicks: team.remainingPicks,
+    rosterAverage: rosterAverageOverall(team.roster),
+  }));
+}
+
+function resolveActivePickSlot(
+  draft: NonNullable<Awaited<ReturnType<typeof getDraftRecord>>>,
+  state: DraftState,
+): { pickNumber: number; teamId: string } | null {
+  if (draft.status === "complete") return null;
+  const remainingPicksByTeamId = Object.fromEntries(
+    state.teams.map((team) => [team.id, team.remainingPicks]),
+  );
+  const canPickByTeamId = computeCanPickByTeamId(state);
+  const usedPickNumbers = usedPickNumbersFromDraft(draft);
+  const mode = parsePickOrderMode(draft.pickOrderMode);
+
+  if (mode === "lowest_avg") {
+    return findNextLowestAverageSlot(
+      draft.nextPickNumber,
+      teamEligibilityFromState(state),
+      canPickByTeamId,
+      usedPickNumbers,
+    );
+  }
+
+  const teamOrders = draft.teams.map((t) => ({ id: t.id, pickOrder: t.pickOrder }));
+  const { maxPickNumber } = buildPickSlotSearch(draft, remainingPicksByTeamId);
+  return findNextActivePickSlot(
+    draft.nextPickNumber,
+    teamOrders,
+    remainingPicksByTeamId,
+    maxPickNumber,
+    canPickByTeamId,
+    usedPickNumbers,
+  );
+}
+
+function resolveTurnQueue(
+  draft: NonNullable<Awaited<ReturnType<typeof getDraftRecord>>>,
+  state: DraftState,
+  activePickNumber: number,
+) {
+  const remainingPicksByTeamId = Object.fromEntries(
+    state.teams.map((team) => [team.id, team.remainingPicks]),
+  );
+  const canPickByTeamId = computeCanPickByTeamId(state);
+  const usedPickNumbers = usedPickNumbersFromDraft(draft);
+  const mode = parsePickOrderMode(draft.pickOrderMode);
+
+  if (mode === "lowest_avg") {
+    return buildLowestAverageTurnQueue(
+      activePickNumber,
+      teamEligibilityFromState(state),
+      8,
+      canPickByTeamId,
+      usedPickNumbers,
+    );
+  }
+
+  const teamOrders = draft.teams.map((t) => ({ id: t.id, pickOrder: t.pickOrder }));
+  const { maxPickNumber } = buildPickSlotSearch(draft, remainingPicksByTeamId);
+  return buildTurnQueue(
+    activePickNumber,
+    teamOrders,
+    8,
+    maxPickNumber,
+    remainingPicksByTeamId,
+    canPickByTeamId,
+    usedPickNumbers,
   );
 }
 
@@ -300,11 +388,6 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
 
   const totalPicks = computePoolPickSlots(draft);
   const picksMade = draft.picks.length;
-  const teamOrders = draft.teams.map((t) => ({ id: t.id, pickOrder: t.pickOrder }));
-  const remainingPicksByTeamId = Object.fromEntries(
-    teams.map((team) => [team.id, team.remainingPicks]),
-  );
-  const { maxPickNumber } = buildPickSlotSearch(draft, remainingPicksByTeamId);
   const draftStateForPickChecks: DraftState = {
     draft: {
       id: draft.id,
@@ -316,6 +399,7 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
       teamCount: draft.teamCount,
       minQuotasEnabled: draft.minQuotasEnabled,
       maxQuotasEnabled: draft.maxQuotasEnabled,
+      pickOrderMode: parsePickOrderMode(draft.pickOrderMode),
       rankThresholds: thresholds,
       displaySettings,
     },
@@ -333,16 +417,9 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
     quotas,
     undraftedTotal: undrafted.length,
   };
-  const canPickByTeamId = computeCanPickByTeamId(draftStateForPickChecks);
   const activeSlot =
-    draft.status !== "complete" && totalPicks > 0
-      ? findNextActivePickSlot(
-          draft.nextPickNumber,
-          teamOrders,
-          remainingPicksByTeamId,
-          maxPickNumber,
-          canPickByTeamId,
-        )
+    draft.status !== "complete" && (totalPicks > 0 || undrafted.length > 0)
+      ? resolveActivePickSlot(draft, draftStateForPickChecks)
       : null;
   const onClockTeam = activeSlot
     ? draft.teams.find((team) => team.id === activeSlot.teamId) ?? null
@@ -372,6 +449,7 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
       teamCount: draft.teamCount,
       minQuotasEnabled: draft.minQuotasEnabled,
       maxQuotasEnabled: draft.maxQuotasEnabled,
+      pickOrderMode: parsePickOrderMode(draft.pickOrderMode),
       rankThresholds: thresholds,
       displaySettings,
     },
@@ -379,13 +457,10 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
     picksMade,
     totalPicks,
     onClockTeamId: onClockTeam?.id ?? null,
-    turnQueue: buildTurnQueue(
+    turnQueue: resolveTurnQueue(
+      draft,
+      draftStateForPickChecks,
       activeSlot?.pickNumber ?? draft.nextPickNumber,
-      teamOrders,
-      8,
-      maxPickNumber,
-      remainingPicksByTeamId,
-      canPickByTeamId,
     ),
     pickHistory,
     undrafted: sortDraftPlayers(undrafted, displaySettings),
@@ -462,7 +537,7 @@ export async function recordPick(
   draftId: string,
   teamId: string,
   playerId: string,
-  options?: { force?: boolean },
+  options?: { force?: boolean; anyTeam?: boolean },
 ) {
   const draft = await getDraftRecord(draftId);
   if (!draft) throw new Error("Draft not found");
@@ -470,7 +545,14 @@ export async function recordPick(
   const state = await buildDraftState(draftId);
   if (!state) throw new Error("Draft not found");
   if (!draft.isLive) throw new Error("Draft is not live");
-  if (state.onClockTeamId !== teamId) throw new Error("Not this team's turn");
+  if (draft.status === "complete") throw new Error("Draft is complete");
+
+  const targetTeam = draft.teams.find((team) => team.id === teamId);
+  if (!targetTeam) throw new Error("Team not found");
+
+  if (!options?.anyTeam && state.onClockTeamId !== teamId) {
+    throw new Error("Not this team's turn");
+  }
 
   const player = state.undrafted.find((p) => p.playerId === playerId);
   if (!player) throw new Error("Player not available");
@@ -479,24 +561,28 @@ export async function recordPick(
     throw new Error("Pick not allowed");
   }
 
-  const teamOrders = draft.teams.map((t) => ({ id: t.id, pickOrder: t.pickOrder }));
-  const remainingPicksByTeamId = Object.fromEntries(
-    state.teams.map((team) => [team.id, team.remainingPicks]),
-  );
-  const canPickByTeamId = computeCanPickByTeamId(state);
-  const { maxPickNumber } = buildPickSlotSearch(draft, remainingPicksByTeamId);
-  const activeSlot = findNextActivePickSlot(
-    draft.nextPickNumber,
-    teamOrders,
-    remainingPicksByTeamId,
-    maxPickNumber,
-    canPickByTeamId,
-  );
-  if (!activeSlot || activeSlot.teamId !== teamId) {
-    throw new Error("Not this team's turn");
+  const usedPickNumbers = usedPickNumbersFromDraft(draft);
+  const onClockAssign = state.onClockTeamId === teamId;
+  let pickNumber: number;
+  let advanceClock = true;
+
+  if (options?.anyTeam && !onClockAssign) {
+    pickNumber = allocateOffClockPickNumber(draft.nextPickNumber, usedPickNumbers);
+    advanceClock = false;
+  } else {
+    const activeSlot = resolveActivePickSlot(draft, state);
+    if (!activeSlot || activeSlot.teamId !== teamId) {
+      if (options?.anyTeam) {
+        pickNumber = allocateOffClockPickNumber(draft.nextPickNumber, usedPickNumbers);
+        advanceClock = false;
+      } else {
+        throw new Error("Not this team's turn");
+      }
+    } else {
+      pickNumber = activeSlot.pickNumber;
+    }
   }
 
-  const pickNumber = activeSlot.pickNumber;
   const round = pickNumberToRound(pickNumber, draft.teamCount);
 
   const pick = await prisma.draftPick.create({
@@ -509,9 +595,6 @@ export async function recordPick(
     },
   });
 
-  const updated = await getDraftRecord(draftId);
-  if (!updated) throw new Error("Draft not found");
-
   const updatedState = await buildDraftState(draftId);
   const draftComplete = updatedState != null && isDraftFullyAssigned(updatedState);
 
@@ -522,17 +605,22 @@ export async function recordPick(
         status: "complete",
         completedAt: new Date(),
         onClockStartedAt: null,
-        nextPickNumber: pickNumber + 1,
+        ...(advanceClock ? { nextPickNumber: pickNumber + 1 } : {}),
       },
     });
-  } else {
+  } else if (advanceClock) {
     await prisma.draft.update({
       where: { id: draftId },
       data: {
         nextPickNumber: pickNumber + 1,
         onClockStartedAt: new Date(),
-        ...(updated.status === "setup" ? { status: "in_progress" as const } : {}),
+        ...(draft.status === "setup" ? { status: "in_progress" as const } : {}),
       },
+    });
+  } else if (draft.status === "setup") {
+    await prisma.draft.update({
+      where: { id: draftId },
+      data: { status: "in_progress" },
     });
   }
 
@@ -549,19 +637,7 @@ export async function skipDraftTurn(draftId: string) {
   if (!state) throw new Error("Draft not found");
   if (!state.onClockTeamId) throw new Error("No turn to skip");
 
-  const teamOrders = draft.teams.map((t) => ({ id: t.id, pickOrder: t.pickOrder }));
-  const remainingPicksByTeamId = Object.fromEntries(
-    state.teams.map((team) => [team.id, team.remainingPicks]),
-  );
-  const canPickByTeamId = computeCanPickByTeamId(state);
-  const { maxPickNumber } = buildPickSlotSearch(draft, remainingPicksByTeamId);
-  const activeSlot = findNextActivePickSlot(
-    draft.nextPickNumber,
-    teamOrders,
-    remainingPicksByTeamId,
-    maxPickNumber,
-    canPickByTeamId,
-  );
+  const activeSlot = resolveActivePickSlot(draft, state);
   if (!activeSlot) throw new Error("No turn to skip");
 
   if (isDraftFullyAssigned(state)) {
@@ -610,19 +686,7 @@ async function reconcileDraftAfterPoolChange(draftId: string) {
 
   if (!draft.isLive) return;
 
-  const remainingPicksByTeamId = Object.fromEntries(
-    state.teams.map((team) => [team.id, team.remainingPicks]),
-  );
-  const teamOrders = draft.teams.map((team) => ({ id: team.id, pickOrder: team.pickOrder }));
-  const canPickByTeamId = computeCanPickByTeamId(state);
-  const { maxPickNumber } = buildPickSlotSearch(draft, remainingPicksByTeamId);
-  const activeSlot = findNextActivePickSlot(
-    draft.nextPickNumber,
-    teamOrders,
-    remainingPicksByTeamId,
-    maxPickNumber,
-    canPickByTeamId,
-  );
+  const activeSlot = resolveActivePickSlot(draft, state);
 
   if (activeSlot) {
     await prisma.draft.update({

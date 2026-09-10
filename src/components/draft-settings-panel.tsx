@@ -49,6 +49,7 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
   });
   const [minQuotasEnabled, setMinQuotasEnabled] = useState(true);
   const [maxQuotasEnabled, setMaxQuotasEnabled] = useState(true);
+  const [pickOrderMode, setPickOrderMode] = useState<"snake" | "lowest_avg">("snake");
   const [showRanksOnCaptainView, setShowRanksOnCaptainView] = useState(true);
   const [hideRanksOnCompleteTeams, setHideRanksOnCompleteTeams] = useState(false);
   const [publicBoardEnabled, setPublicBoardEnabled] = useState(false);
@@ -74,6 +75,7 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
       setThresholds(data.draft.rankThresholds);
       setMinQuotasEnabled(data.draft.minQuotasEnabled);
       setMaxQuotasEnabled(data.draft.maxQuotasEnabled);
+      setPickOrderMode(data.draft.pickOrderMode === "lowest_avg" ? "lowest_avg" : "snake");
       setShowRanksOnCaptainView(data.draft.displaySettings.showRanksOnCaptainView);
       setHideRanksOnCompleteTeams(data.draft.displaySettings.hideRanksOnCompleteTeams);
       setPublicBoardEnabled(data.draft.displaySettings.publicBoardEnabled ?? false);
@@ -119,6 +121,7 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
         rankThresholds: thresholds,
         minQuotasEnabled,
         maxQuotasEnabled,
+        pickOrderMode,
         displaySettings: {
           showRanksOnCaptainView,
           hideRanksOnCompleteTeams,
@@ -182,6 +185,25 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="rounded border border-zinc-200 p-4">
           <h2 className="font-medium">General</h2>
+          <div className="mt-4">
+            <h3 className="text-sm font-medium">Pick order format</h3>
+            <label className="mt-2 flex flex-col gap-1 text-sm">
+              Format
+              <select
+                className="rounded border px-2 py-1"
+                value={pickOrderMode}
+                onChange={(e) => setPickOrderMode(e.target.value as "snake" | "lowest_avg")}
+              >
+                <option value="snake">Snake (A–B–C–D–D–C–B–A)</option>
+                <option value="lowest_avg">Lowest to highest</option>
+              </select>
+            </label>
+            <p className="mt-1 text-xs text-zinc-500">
+              {pickOrderMode === "snake"
+                ? "Fixed snake order based on captain pick order."
+                : "After each pick, the team with the lowest roster CALC average picks next. Empty rosters pick first; ties use pick order."}
+            </p>
+          </div>
           <div className="mt-4">
             <h3 className="text-sm font-medium">Player sort order</h3>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">

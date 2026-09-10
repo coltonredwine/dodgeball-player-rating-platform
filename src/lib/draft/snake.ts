@@ -50,8 +50,10 @@ export function findNextActivePickSlot(
   remainingPicksByTeamId: Record<string, number>,
   maxPickNumber: number,
   canPickByTeamId?: Record<string, boolean>,
+  usedPickNumbers?: Set<number>,
 ): { pickNumber: number; teamId: string } | null {
   for (let pickNumber = Math.max(1, startPickNumber); pickNumber <= maxPickNumber; pickNumber++) {
+    if (usedPickNumbers?.has(pickNumber)) continue;
     const team = getTeamForPick(pickNumber, teams);
     if (!team) continue;
     if ((remainingPicksByTeamId[team.id] ?? 0) <= 0) continue;
@@ -68,9 +70,11 @@ export function buildTurnQueue(
   maxPickNumber?: number,
   remainingPicksByTeamId?: Record<string, number>,
   canPickByTeamId?: Record<string, boolean>,
+  usedPickNumbers?: Set<number>,
 ): Array<{ pickNumber: number; teamId: string; round: number }> {
   const queue = [];
   let cursor = activePickNumber;
+  const used = new Set(usedPickNumbers ?? []);
 
   while (queue.length < count) {
     if (maxPickNumber != null && cursor > maxPickNumber) break;
@@ -81,6 +85,7 @@ export function buildTurnQueue(
         remainingPicksByTeamId,
         maxPickNumber ?? cursor,
         canPickByTeamId,
+        used,
       );
       if (!slot) break;
       queue.push({
@@ -88,10 +93,15 @@ export function buildTurnQueue(
         teamId: slot.teamId,
         round: pickNumberToRound(slot.pickNumber, teams.length),
       });
+      used.add(slot.pickNumber);
       cursor = slot.pickNumber + 1;
       continue;
     }
 
+    if (used.has(cursor)) {
+      cursor += 1;
+      continue;
+    }
     const team = getTeamForPick(cursor, teams);
     if (!team) break;
     queue.push({
@@ -99,6 +109,7 @@ export function buildTurnQueue(
       teamId: team.id,
       round: pickNumberToRound(cursor, teams.length),
     });
+    used.add(cursor);
     cursor += 1;
   }
 

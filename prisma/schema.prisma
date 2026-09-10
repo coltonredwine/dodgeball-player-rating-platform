@@ -173,6 +173,8 @@ model Draft {
   rankThresholds   String
   minQuotasEnabled Boolean               @default(true)
   maxQuotasEnabled Boolean               @default(true)
+  /** snake | lowest_avg — how the on-clock team is chosen */
+  pickOrderMode    String                @default("snake")
   displaySettings  String                @default("{}")
   liveAt           DateTime?
   onClockStartedAt DateTime?

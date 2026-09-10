@@ -12,7 +12,7 @@ import { ScrollableListCard } from "@/components/scrollable-list-card";
 import { TeamQuotaTable } from "@/components/team-quota-table";
 import { filterPlayersByQuery } from "@/lib/player-search";
 import type { QuotaLimits } from "@/lib/draft/quotas";
-import { areQuotasEnabled } from "@/lib/draft/quotas";
+import { areQuotasEnabled, canPickRank } from "@/lib/draft/quotas";
 import { validateRosterMove } from "@/lib/draft/trade-validation";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
 import { formatCalcRankDisplay, type RankThresholds } from "@/lib/rankings/thresholds";
@@ -127,25 +127,31 @@ type Props = {
 
 function AdminPlayerProfile({
   player,
-  onClockCaptainName,
+  onClockTeamId,
+  assignTeamId,
+  onAssignTeamChange,
+  teams,
   onDraft,
   pickBusy,
   pickError,
   canDraft,
   draftBlockedReason,
-  quotaForbidden,
+  forceWarnings,
   viewOnly = false,
   currentTeamName,
   moveControls,
 }: {
   player: UndraftedPlayer;
-  onClockCaptainName?: string | null;
+  onClockTeamId?: string | null;
+  assignTeamId?: string;
+  onAssignTeamChange?: (teamId: string) => void;
+  teams?: Array<{ id: string; captainName: string; remainingPicks: number }>;
   onDraft?: () => void;
   pickBusy?: boolean;
   pickError?: string | null;
   canDraft?: boolean;
   draftBlockedReason?: string | null;
-  quotaForbidden?: boolean;
+  forceWarnings?: string[];
   viewOnly?: boolean;
   currentTeamName?: string | null;
   moveControls?: {
@@ -257,17 +263,27 @@ function AdminPlayerProfile({
 
       {!viewOnly && !moveControls ? (
         <div className="space-y-2 border-t border-zinc-200 pt-4">
-          {onClockCaptainName ? (
-            <p className="text-sm text-zinc-700">
-              Draft to <span className="font-medium">{onClockCaptainName}</span>
-            </p>
+          {teams && onAssignTeamChange ? (
+            <label className="block text-sm font-medium text-zinc-700">
+              Assign to team
+              <select
+                className="mt-1 w-full rounded border border-zinc-300 px-2 py-1.5 text-sm"
+                value={assignTeamId ?? ""}
+                onChange={(event) => onAssignTeamChange(event.target.value)}
+              >
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.captainName}
+                    {team.id === onClockTeamId ? " (on clock)" : ""}
+                    {team.remainingPicks <= 0 ? " — full" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
           ) : null}
           {draftBlockedReason ? <p className="text-xs text-zinc-500">{draftBlockedReason}</p> : null}
-          {quotaForbidden ? (
-            <p className="text-xs text-red-700">
-              This pick is blocked by rank quotas for the on-clock captain. Confirming will force the
-              pick anyway.
-            </p>
+          {forceWarnings && forceWarnings.length > 0 ? (
+            <p className="text-xs text-amber-800">{forceWarnings.join(" ")}</p>
           ) : null}
           {pickError ? <p className="text-sm text-red-700">{pickError}</p> : null}
           <button
@@ -276,7 +292,7 @@ function AdminPlayerProfile({
             className="w-full rounded bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
             onClick={onDraft}
           >
-            {pickBusy ? "Drafting…" : "Draft to team"}
+            {pickBusy ? "Drafting…" : "Assign to team"}
           </button>
         </div>
       ) : null}
@@ -298,6 +314,7 @@ export function DraftBoardView({
   const [pickBusy, setPickBusy] = useState(false);
   const [undraftedSearch, setUndraftedSearch] = useState("");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [assignTeamId, setAssignTeamId] = useState<string>("");
   const [forcePickConfirmOpen, setForcePickConfirmOpen] = useState(false);
   const [selectedRosterMove, setSelectedRosterMove] = useState<{
     playerId: string;
@@ -418,30 +435,75 @@ export function DraftBoardView({
     return state.teams.find((team) => team.id === selectedRosterMove.fromTeamId) ?? null;
   }, [selectedRosterMove, state]);
 
+  useEffect(() => {
+    if (!state) return;
+    if (assignTeamId && state.teams.some((team) => team.id === assignTeamId)) return;
+    setAssignTeamId(state.onClockTeamId ?? state.teams[0]?.id ?? "");
+  }, [assignTeamId, state]);
+
+  const prevSelectedPlayerIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedPlayerId || !state) return;
+    if (prevSelectedPlayerIdRef.current === selectedPlayerId) return;
+    prevSelectedPlayerIdRef.current = selectedPlayerId;
+    setAssignTeamId(state.onClockTeamId ?? state.teams[0]?.id ?? "");
+  }, [selectedPlayerId, state]);
+
   const canDraft =
     mode === "admin" &&
     !adminReadOnly &&
     !!selectedPlayer &&
     !!state?.draft.isLive &&
     state.draft.status !== "complete" &&
-    !!state.onClockTeamId;
+    !!assignTeamId;
 
   const draftBlockedReason = (() => {
     if (mode !== "admin" || !selectedPlayer) return null;
     if (!state?.draft.isLive) return "Go live to draft players.";
     if (state.draft.status === "complete") return "Draft is complete.";
-    if (!state.onClockTeamId) return "No captain is on the clock.";
+    if (!assignTeamId) return "Select a team to assign this player.";
     return null;
   })();
 
-  function isQuotaForbiddenForOnClock(playerId: string): boolean {
-    if (!state || !areQuotasEnabled(state.draft) || !state.onClockTeamId) return false;
-    return !(state.adminPickEligibility?.[playerId] ?? true);
-  }
+  const assignTeam = useMemo(() => {
+    if (!state || !assignTeamId) return null;
+    return state.teams.find((team) => team.id === assignTeamId) ?? null;
+  }, [assignTeamId, state]);
+
+  const forceWarnings = useMemo(() => {
+    if (!state || !selectedPlayer?.scores || !assignTeam) return [] as string[];
+    const warnings: string[] = [];
+    if (assignTeam.id !== state.onClockTeamId) {
+      warnings.push(
+        state.onClockTeamId
+          ? "This is not the on-clock team — assignment will not advance their turn."
+          : "No captain is on the clock — this assigns outside the normal pick order.",
+      );
+    }
+    if (assignTeam.remainingPicks <= 0) {
+      warnings.push("This team is already at its roster size target.");
+    }
+    if (areQuotasEnabled(state.draft)) {
+      const allowed = canPickRank(
+        assignTeam.id,
+        selectedPlayer.scores.rank,
+        assignTeam.rankCounts[selectedPlayer.scores.rank] ?? 0,
+        state.teams,
+        state.undraftedRankCounts,
+        state.quotas,
+        state.draft.minQuotasEnabled,
+        state.draft.maxQuotasEnabled,
+      );
+      if (!allowed) {
+        warnings.push("This pick violates rank quotas for the selected team.");
+      }
+    }
+    return warnings;
+  }, [assignTeam, selectedPlayer, state]);
 
   function requestDraftSelectedPlayer() {
-    if (!state || !selectedPlayer || !state.onClockTeamId || !canDraft) return;
-    if (isQuotaForbiddenForOnClock(selectedPlayer.playerId)) {
+    if (!state || !selectedPlayer || !assignTeamId || !canDraft) return;
+    if (forceWarnings.length > 0) {
       setForcePickConfirmOpen(true);
       return;
     }
@@ -449,14 +511,14 @@ export function DraftBoardView({
   }
 
   async function draftSelectedPlayer() {
-    if (!state || !selectedPlayer || !state.onClockTeamId || !canDraft) return;
+    if (!state || !selectedPlayer || !assignTeamId || !canDraft) return;
     setPickBusy(true);
     setPickError(null);
     try {
       const res = await fetch(`/api/admin/drafts/${draftId}/pick`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId: state.onClockTeamId, playerId: selectedPlayer.playerId }),
+        body: JSON.stringify({ teamId: assignTeamId, playerId: selectedPlayer.playerId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1234,13 +1296,20 @@ export function DraftBoardView({
         <div className="mt-3">
           <AdminPlayerProfile
             player={selectedPlayer}
-            onClockCaptainName={onClock?.captainName ?? null}
+            onClockTeamId={state.onClockTeamId}
+            assignTeamId={assignTeamId}
+            onAssignTeamChange={setAssignTeamId}
+            teams={state.teams.map((team) => ({
+              id: team.id,
+              captainName: team.captainName,
+              remainingPicks: team.remainingPicks,
+            }))}
             onDraft={() => requestDraftSelectedPlayer()}
             pickBusy={pickBusy}
             pickError={pickError}
             canDraft={canDraft}
             draftBlockedReason={draftBlockedReason}
-            quotaForbidden={isQuotaForbiddenForOnClock(selectedPlayer.playerId)}
+            forceWarnings={forceWarnings}
             viewOnly={adminReadOnly}
           />
         </div>
@@ -1256,7 +1325,11 @@ export function DraftBoardView({
     </section>
   );
 
-  const onClockCaptainName = onClock?.captainName ?? "the on-clock captain";
+  const assignCaptainName = assignTeam?.captainName ?? "the selected team";
+  const forcePickMessage =
+    forceWarnings.length > 0
+      ? `Assign ${selectedPlayer?.firstName ?? ""} ${selectedPlayer?.lastName ?? ""} to ${assignCaptainName}? ${forceWarnings.join(" ")} Continue anyway?`
+      : `Assign ${selectedPlayer?.firstName ?? ""} ${selectedPlayer?.lastName ?? ""} to ${assignCaptainName}?`;
 
   return (
     <div
@@ -1264,9 +1337,9 @@ export function DraftBoardView({
     >
       <ConfirmDialog
         open={forcePickConfirmOpen}
-        title="Force quota-blocked pick?"
-        message={`${selectedPlayer?.firstName ?? ""} ${selectedPlayer?.lastName ?? ""} is blocked by rank quotas for ${onClockCaptainName}. Force this pick anyway?`}
-        confirmLabel="Force pick"
+        title="Force assign player?"
+        message={forcePickMessage}
+        confirmLabel="Force assign"
         pending={pickBusy}
         confirmClassName="bg-red-600"
         onConfirm={() => void draftSelectedPlayer()}

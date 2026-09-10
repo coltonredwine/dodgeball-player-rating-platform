@@ -19,6 +19,7 @@ const settingsSchema = z.object({
     .optional(),
   minQuotasEnabled: z.boolean().optional(),
   maxQuotasEnabled: z.boolean().optional(),
+  pickOrderMode: z.enum(["snake", "lowest_avg"]).optional(),
   displaySettings: z
     .object({
       showRanksOnCaptainView: z.boolean(),
@@ -62,6 +63,7 @@ export async function PATCH(request: Request, { params }: Params) {
         : undefined,
       minQuotasEnabled: data.minQuotasEnabled,
       maxQuotasEnabled: data.maxQuotasEnabled,
+      pickOrderMode: data.pickOrderMode,
       displaySettings: data.displaySettings
         ? serializeDisplaySettings(data.displaySettings)
         : undefined,

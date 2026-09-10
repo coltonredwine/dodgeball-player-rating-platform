@@ -23,6 +23,7 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const pick = await recordPick(draftId, parsed.data.teamId, parsed.data.playerId, {
       force: true,
+      anyTeam: true,
     });
     return NextResponse.json({ pick });
   } catch (error) {

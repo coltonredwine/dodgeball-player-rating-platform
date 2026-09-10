@@ -32,6 +32,11 @@ assert.deepEqual(
   { pickNumber: 2, teamId: "B" },
 );
 
+assert.deepEqual(
+  findNextActivePickSlot(1, teams, { A: 1, B: 1, C: 1 }, 6, undefined, new Set([1])),
+  { pickNumber: 2, teamId: "B" },
+);
+
 const remaining = { A: 1, B: 0, C: 0 };
 const poolPickSlots = 26;
 const maxPickNumber = computeMaxPickNumber(25, teams.length, remaining, poolPickSlots);
