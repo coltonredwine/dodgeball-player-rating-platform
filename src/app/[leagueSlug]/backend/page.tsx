@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
 import { CompletionView } from "@/components/completion-view";
 import { CsvImportPanel } from "@/components/csv-import-panel";
+import { MarkForReviewPanel } from "@/components/mark-for-review-panel";
 import { PlayersEditor } from "@/components/players-editor";
 import { RatersEditor } from "@/components/raters-editor";
 import { ScrollableListCard } from "@/components/scrollable-list-card";
@@ -99,6 +100,14 @@ export default async function BackendPage({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold">Admin</h1>
           <div className="flex flex-wrap gap-2">
+            {superadmin ? (
+              <Link
+                href={leaguePath(league.slug, "/backend/settings")}
+                className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+              >
+                Settings
+              </Link>
+            ) : null}
             <Link
               href={leaguePath(league.slug, "/backend/drafts")}
               className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
@@ -113,6 +122,8 @@ export default async function BackendPage({
             </Link>
           </div>
         </div>
+
+        {superadmin ? <MarkForReviewPanel /> : null}
 
         {importError ? (
           <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
