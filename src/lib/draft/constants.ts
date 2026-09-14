@@ -3,7 +3,11 @@ import {
   DEFAULT_SORT_SETTINGS,
   PlayerSortField,
 } from "@/lib/draft/sort";
-import { parsePublicRosterSort, type DraftRosterSortMode } from "@/lib/draft/roster-sort";
+import { parsePublicRosterSort, parseSortDirection, type DraftRosterSortMode, type SortDirection } from "@/lib/draft/roster-sort";
+import {
+  parseRosterAverageMetric,
+  type RosterAverageMetric,
+} from "@/lib/draft/roster-average";
 
 /** ColorBrewer Set1-9 */
 export const TEAM_COLOR_PALETTE = [
@@ -27,21 +31,34 @@ export function isTeamColorAllowed(color: string): boolean {
 export type DraftDisplaySettings = {
   showRanksOnCaptainView: boolean;
   hideRanksOnCompleteTeams: boolean;
+  /** When false, hide rank glyphs and show Rally Index (RAL) instead. */
+  playerRanksEnabled: boolean;
+  /**
+   * Display-only transform for Rally Index / CALC averages, e.g. `*2` or `+1`.
+   * Does not change stored scores.
+   */
+  rallyModifier: string;
   primarySort: PlayerSortField;
   secondarySort: PlayerSortField;
   publicBoardEnabled: boolean;
   publicShowRanks: boolean;
   publicShowSkillRatings: boolean;
   publicRosterSort: DraftRosterSortMode;
+  publicRosterSortDirection: SortDirection;
+  rosterAverageMetric: RosterAverageMetric;
 };
 
 const DEFAULT_DISPLAY_SETTINGS: DraftDisplaySettings = {
   showRanksOnCaptainView: true,
   hideRanksOnCompleteTeams: false,
+  playerRanksEnabled: true,
+  rallyModifier: "",
   publicBoardEnabled: false,
   publicShowRanks: true,
   publicShowSkillRatings: true,
   publicRosterSort: "pickOrder",
+  publicRosterSortDirection: "desc",
+  rosterAverageMetric: "rank",
   ...DEFAULT_SORT_SETTINGS,
 };
 
@@ -54,12 +71,16 @@ export function parseDisplaySettings(raw: string | null | undefined): DraftDispl
     return {
       showRanksOnCaptainView: parsed.showRanksOnCaptainView ?? true,
       hideRanksOnCompleteTeams: parsed.hideRanksOnCompleteTeams ?? false,
+      playerRanksEnabled: parsed.playerRanksEnabled ?? true,
+      rallyModifier: typeof parsed.rallyModifier === "string" ? parsed.rallyModifier.trim() : "",
       primarySort: parsed.primarySort ?? DEFAULT_SORT_SETTINGS.primarySort,
       secondarySort: parsed.secondarySort ?? DEFAULT_SORT_SETTINGS.secondarySort,
       publicBoardEnabled: parsed.publicBoardEnabled ?? false,
       publicShowRanks: parsed.publicShowRanks ?? true,
       publicShowSkillRatings: parsed.publicShowSkillRatings ?? true,
       publicRosterSort: parsePublicRosterSort(parsed),
+      publicRosterSortDirection: parseSortDirection(parsed.publicRosterSortDirection),
+      rosterAverageMetric: parseRosterAverageMetric(parsed.rosterAverageMetric),
     };
   } catch {
     return { ...DEFAULT_DISPLAY_SETTINGS };

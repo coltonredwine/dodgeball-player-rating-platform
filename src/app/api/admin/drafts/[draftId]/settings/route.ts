@@ -24,12 +24,16 @@ const settingsSchema = z.object({
     .object({
       showRanksOnCaptainView: z.boolean(),
       hideRanksOnCompleteTeams: z.boolean(),
+      playerRanksEnabled: z.boolean().optional(),
+      rallyModifier: z.string().optional(),
       primarySort: z.enum(["rank", "calculation", "firstName", "lastName"]),
       secondarySort: z.enum(["rank", "calculation", "firstName", "lastName"]),
       publicBoardEnabled: z.boolean(),
       publicShowRanks: z.boolean(),
       publicShowSkillRatings: z.boolean(),
       publicRosterSort: z.enum(["pickOrder", "calc", "lastName"]),
+      publicRosterSortDirection: z.enum(["asc", "desc"]).optional(),
+      rosterAverageMetric: z.enum(["rank", "calc"]).optional(),
     })
     .optional(),
   teams: z
@@ -65,7 +69,14 @@ export async function PATCH(request: Request, { params }: Params) {
       maxQuotasEnabled: data.maxQuotasEnabled,
       pickOrderMode: data.pickOrderMode,
       displaySettings: data.displaySettings
-        ? serializeDisplaySettings(data.displaySettings)
+        ? serializeDisplaySettings({
+            ...data.displaySettings,
+            publicRosterSortDirection:
+              data.displaySettings.publicRosterSortDirection ?? "desc",
+            rosterAverageMetric: data.displaySettings.rosterAverageMetric ?? "rank",
+            playerRanksEnabled: data.displaySettings.playerRanksEnabled ?? true,
+            rallyModifier: data.displaySettings.rallyModifier ?? "",
+          })
         : undefined,
     },
   });

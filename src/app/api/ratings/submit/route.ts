@@ -74,6 +74,7 @@ export async function POST(request: Request) {
           catching: row.catching,
           evasion: row.evasion,
           nerve: row.nerve,
+          ...(typeof row.needsReview === "boolean" ? { needsReview: row.needsReview } : {}),
         },
         create: {
           submissionId,
@@ -85,6 +86,7 @@ export async function POST(request: Request) {
           catching: row.catching,
           evasion: row.evasion,
           nerve: row.nerve,
+          needsReview: row.needsReview ?? false,
         },
       });
     }

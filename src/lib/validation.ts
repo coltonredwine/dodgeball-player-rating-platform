@@ -6,6 +6,7 @@ const scoreValue = z.number().int().min(1).max(7).nullable();
 export const ratingRowSchema = z.object({
   playerId: z.string().min(1),
   unknownPlayer: z.boolean(),
+  needsReview: z.boolean().optional(),
   power: scoreValue,
   accuracy: scoreValue,
   intimidation: scoreValue,

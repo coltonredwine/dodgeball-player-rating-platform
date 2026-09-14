@@ -28,6 +28,7 @@ export async function buildActivePlayerRatingRows(raterId: string, leagueId: str
       evasion: row?.evasion ?? null,
       nerve: row?.nerve ?? null,
       unknownPlayer: row?.unknownPlayer ?? false,
+      needsReview: row?.needsReview ?? false,
     };
   });
 

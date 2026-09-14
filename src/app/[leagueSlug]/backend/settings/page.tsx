@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppNav } from "@/components/app-nav";
 import { BackendSettingsForm } from "@/components/backend-settings-form";
+import { MarkForReviewPanel } from "@/components/mark-for-review-panel";
 import { ScoringWindowForm } from "@/components/scoring-window-form";
 import { requireLeaguePageSession, leaguePath } from "@/lib/league-routes";
 import { getAppNavData } from "@/lib/nav";
@@ -106,6 +107,8 @@ export default async function BackendSettingsPage({
               Save rate page settings
             </button>
           </BackendSettingsForm>
+
+          <MarkForReviewPanel />
         </div>
       </section>
     </main>

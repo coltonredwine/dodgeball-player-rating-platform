@@ -18,6 +18,7 @@ type PlayerRow = {
   evasion: number | null;
   nerve: number | null;
   unknownPlayer: boolean;
+  needsReview: boolean;
 };
 
 type Props = {
@@ -67,15 +68,22 @@ function isValidScore(value: number | null): value is number {
   return value !== null && value >= 1 && value <= 7;
 }
 
-function mergePlayerMetadata(stored: PlayerRow[], initial: PlayerRow[]) {
-  const meta = new Map(initial.map((row) => [row.playerId, row]));
-  return stored.map((row) => {
-    const source = meta.get(row.playerId);
+function mergePendingWithInitial(stored: PlayerRow[], initial: PlayerRow[]) {
+  const pendingById = new Map(stored.map((row) => [row.playerId, row]));
+  return initial.map((serverRow) => {
+    const local = pendingById.get(serverRow.playerId);
+    if (!local) return serverRow;
     return {
-      ...row,
-      firstName: source?.firstName ?? row.firstName,
-      lastName: source?.lastName ?? row.lastName,
-      link: source?.link ?? row.link ?? null,
+      ...serverRow,
+      power: local.power,
+      accuracy: local.accuracy,
+      intimidation: local.intimidation,
+      catching: local.catching,
+      evasion: local.evasion,
+      nerve: local.nerve,
+      unknownPlayer: local.unknownPlayer,
+      needsReview:
+        typeof local.needsReview === "boolean" ? local.needsReview : serverRow.needsReview,
     };
   });
 }
@@ -115,6 +123,13 @@ function parseScoreInput(raw: string): number | null {
   return value;
 }
 
+function rowBackground(row: PlayerRow) {
+  const complete = isRowComplete(row);
+  if (row.needsReview && complete) return "bg-amber-100";
+  if (complete) return "bg-[#dfe8df]";
+  return "bg-white";
+}
+
 export function RatingGrid({ submissionId, locked, initialRows }: Props) {
   const storageKey = `${STORAGE_PREFIX}${submissionId}`;
   const [rows, setRows] = useState<PlayerRow[]>(() => {
@@ -123,7 +138,7 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
     if (!pending) return initialRows;
     try {
       const parsed = JSON.parse(pending) as PlayerRow[];
-      return Array.isArray(parsed) ? mergePlayerMetadata(parsed, initialRows) : initialRows;
+      return Array.isArray(parsed) ? mergePendingWithInitial(parsed, initialRows) : initialRows;
     } catch {
       return initialRows;
     }
@@ -224,6 +239,16 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
       persistRows(next);
       return next;
     });
+  }
+
+  function markRowReviewed(rowIndex: number) {
+    if (locked) return;
+    const next = rows.map((row, index) =>
+      index === rowIndex ? { ...row, needsReview: false } : row,
+    );
+    setRows(next);
+    persistRows(next);
+    void sync(next, false);
   }
 
   function handleMetricKeyDown(
@@ -432,11 +457,12 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
       <div className="max-h-[75vh] w-full min-w-0 overflow-auto rounded border border-zinc-200">
         <table className="w-full table-fixed border-collapse text-sm sm:table-auto sm:min-w-full">
           <colgroup className="sm:hidden">
-            <col className="w-[26%]" />
+            <col className="w-[24%]" />
             {METRIC_FIELDS.map((field) => (
-              <col key={field} className="w-[10%]" />
+              <col key={field} className="w-[9.5%]" />
             ))}
-            <col className="w-[14%]" />
+            <col className="w-[12%]" />
+            <col className="w-[11%]" />
           </colgroup>
           <thead className="sticky top-0 z-20 bg-zinc-100 text-zinc-900">
             <tr>
@@ -456,18 +482,22 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                 <MobileRotatedHeader label="Unknown" />
                 <span className="hidden sm:inline">I don&apos;t know</span>
               </th>
+              <th className={`${MOBILE_METRIC_TH_CLASS} text-zinc-900`}>
+                <MobileRotatedHeader label="Review" />
+                <span className="hidden sm:inline">Reviewed</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, rowIndex) => {
               const complete = isRowComplete(row);
               const partial = rowHasPartialScores(row);
-              const rowBg = complete ? "bg-[#dfe8df]" : "bg-white";
+              const rowBg = rowBackground(row);
               return (
                 <tr
                   key={row.playerId}
                   className={`border-t border-zinc-200 ${rowBg} ${
-                    complete ? "text-zinc-600" : ""
+                    complete && !row.needsReview ? "text-zinc-600" : ""
                   }`}
                 >
                   <td
@@ -515,6 +545,24 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                       onChange={(event) => toggleUnknown(rowIndex, event.target.checked)}
                       aria-label={`I don't know ${row.firstName} ${row.lastName}`}
                     />
+                  </td>
+                  <td className={`${MOBILE_METRIC_TD_CLASS} text-center sm:px-3`}>
+                    {row.needsReview ? (
+                      <button
+                        type="button"
+                        disabled={locked}
+                        onClick={() => markRowReviewed(rowIndex)}
+                        className="rounded bg-emerald-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50 sm:px-2.5 sm:text-xs"
+                        title="Mark as reviewed"
+                        aria-label={`Mark ${row.firstName} ${row.lastName} as reviewed`}
+                      >
+                        Done
+                      </button>
+                    ) : (
+                      <span className="text-zinc-300" aria-hidden>
+                        —
+                      </span>
+                    )}
                   </td>
                 </tr>
               );

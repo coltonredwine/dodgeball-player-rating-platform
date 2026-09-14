@@ -9,6 +9,13 @@ import { RankGlyph } from "@/components/rank-glyph";
 import { resolveGhostRosterPlayers } from "@/lib/draft/bookmarks";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
 import { isTradeRosterPlayerInactive } from "@/lib/draft/trade-validation";
+import {
+  formatRosterAverageValue,
+  getRosterAverageValue,
+  rosterAverageLabel,
+  type RosterAverageMetric,
+} from "@/lib/draft/roster-average";
+import { formatRallyIndex, parseRallyModifier, type RallyModifierOp } from "@/lib/draft/rally-modifier";
 import { DRAFT_ROOM_DARK } from "@/lib/draft-room-theme";
 import type { CaptainTradeControls } from "@/components/draft-board-tv-view";
 import {
@@ -31,13 +38,14 @@ type TeamState = {
     lastName: string;
     link: string | null;
     rank: number;
+    overall?: number;
     leaning: string;
     isStarter: boolean;
   }>;
   targetRosterSize: number;
   quotaNeed: Record<number, number>;
   quotaCap: Record<number, number>;
-  stats: { avgRank: number | null };
+  stats: { avgRank: number | null; avgOverall?: number | null };
 };
 
 type PickHistoryEntry = {
@@ -55,7 +63,7 @@ type UndraftedPlayer = {
   firstName: string;
   lastName: string;
   link: string | null;
-  scores: { rank: number; leaning: string } | null;
+  scores: { rank: number; overall?: number; leaning: string } | null;
 };
 
 const MOBILE_ROSTER_AVATAR_SIZE = 32;
@@ -66,6 +74,11 @@ export type MobileCaptainState = {
     minQuotasEnabled: boolean;
     maxQuotasEnabled: boolean;
     onClockStartedAt: string | null;
+    displaySettings?: {
+      rosterAverageMetric?: RosterAverageMetric;
+      playerRanksEnabled?: boolean;
+      rallyModifier?: string;
+    };
   };
   onClockTeamId: string | null;
   captainTeamId: string | null;
@@ -233,9 +246,11 @@ function MobileRosterPlayerRow({
   lastName,
   link,
   rank,
+  overall,
   leaning,
   isStarter = false,
   showRanks,
+  rallyLabel = null,
   ghost = false,
   tradeActions,
   highlighted = false,
@@ -246,9 +261,11 @@ function MobileRosterPlayerRow({
   lastName: string;
   link: string | null;
   rank?: number;
+  overall?: number;
   leaning: string;
   isStarter?: boolean;
   showRanks: boolean;
+  rallyLabel?: string | null;
   ghost?: boolean;
   tradeActions?: ReactNode;
   highlighted?: boolean;
@@ -285,6 +302,10 @@ function MobileRosterPlayerRow({
             surface={theme.rankGlyphSurface}
             className="shrink-0"
           />
+        ) : rallyLabel ? (
+          <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
+            {rallyLabel}
+          </span>
         ) : null}
       </div>
       <LeaningIcon leaning={leaning} size={14} className="shrink-0" />
@@ -298,23 +319,29 @@ function MobileTeamPanel({
   minQuotasEnabled,
   maxQuotasEnabled,
   showRanks,
+  showRallyIndex = false,
+  rallyModifier = null,
   isOnClock,
   ghostPlayers = [],
   isCaptainTeam = false,
   captainTeamId = null,
   trade,
   teamPendingTrades = [],
+  rosterAverageMetric = "rank",
 }: {
   team: TeamState;
   minQuotasEnabled: boolean;
   maxQuotasEnabled: boolean;
   showRanks: boolean;
+  showRallyIndex?: boolean;
+  rallyModifier?: RallyModifierOp | null;
   isOnClock: boolean;
   ghostPlayers?: UndraftedPlayer[];
   isCaptainTeam?: boolean;
   captainTeamId?: string | null;
   trade?: CaptainTradeControls;
   teamPendingTrades?: PendingTradeProposal[];
+  rosterAverageMetric?: RosterAverageMetric;
 }) {
   const incomingTrades =
     trade?.pendingTrades.filter((entry) => entry.counterpartyTeamId === team.id) ?? [];
@@ -322,6 +349,8 @@ function MobileTeamPanel({
     trade?.pendingTrades.filter((entry) => entry.proposingTeamId === team.id) ?? [];
   const hasOutgoingPending = outgoingTrades.length > 0;
   const quotasEnabled = areQuotasEnabled({ minQuotasEnabled, maxQuotasEnabled });
+  const rosterAvgModifier = rosterAverageMetric === "calc" ? rallyModifier : null;
+  const averageValue = getRosterAverageValue(team.stats, rosterAverageMetric, rosterAvgModifier);
 
   function tradeRosterInactive(player: TeamState["roster"][number]) {
     if (!trade?.enabled) return false;
@@ -427,7 +456,7 @@ function MobileTeamPanel({
                 {team.roster.length}/{team.targetRosterSize}
               </span>
             </p>
-            {areQuotasEnabled({ minQuotasEnabled, maxQuotasEnabled }) ? (
+            {showRanks && areQuotasEnabled({ minQuotasEnabled, maxQuotasEnabled }) ? (
               <div className="mt-1.5">
                 <TeamQuotaTable
                   quotaNeed={team.quotaNeed}
@@ -524,9 +553,15 @@ function MobileTeamPanel({
                     lastName={p.lastName}
                     link={p.link}
                     rank={p.rank}
+                    overall={p.overall}
                     leaning={p.leaning}
                     isStarter={p.isStarter}
                     showRanks={showRanks}
+                    rallyLabel={
+                      showRallyIndex && p.overall != null
+                        ? formatRallyIndex(p.overall, rallyModifier)
+                        : null
+                    }
                     tradeActions={renderTradeActions(p)}
                     inactive={tradeRosterInactive(p)}
                     highlighted={
@@ -546,16 +581,23 @@ function MobileTeamPanel({
                     lastName={player.lastName}
                     link={player.link}
                     rank={player.scores.rank}
+                    overall={player.scores.overall}
                     leaning={player.scores.leaning}
                     showRanks={showRanks}
+                    rallyLabel={
+                      showRallyIndex && player.scores.overall != null
+                        ? formatRallyIndex(player.scores.overall, rallyModifier)
+                        : null
+                    }
                     ghost
                   />
                 ) : null,
               )}
             </ul>
-            {team.stats.avgRank != null ? (
+            {averageValue != null ? (
               <p className={`mt-4 text-center text-sm tabular-nums ${theme.cardStats}`}>
-                Roster average: {team.stats.avgRank.toFixed(2)}
+                {rosterAverageLabel(rosterAverageMetric)}:{" "}
+                {formatRosterAverageValue(team.stats, rosterAverageMetric, rosterAvgModifier)}
               </p>
             ) : null}
           </div>
@@ -568,12 +610,16 @@ function MobileTeamPanel({
 export function MobileCaptainLayout({
   state,
   showRanks,
+  showRallyIndex = false,
+  rallyModifierRaw = "",
   onOpenTeamRef,
   trade,
   children,
 }: {
   state: MobileCaptainState;
   showRanks: boolean;
+  showRallyIndex?: boolean;
+  rallyModifierRaw?: string;
   onOpenTeamRef?: MutableRefObject<(() => void) | null>;
   trade?: CaptainTradeControls;
   children: ReactNode;
@@ -602,6 +648,9 @@ export function MobileCaptainLayout({
   const pendingTrades = trade?.pendingTrades ?? [];
   const teamPendingTradesFor = (teamId: string) =>
     pendingTrades.filter((entry) => entry.counterpartyTeamId === teamId);
+  const rosterAverageMetric: RosterAverageMetric =
+    state.draft.displaySettings?.rosterAverageMetric === "calc" ? "calc" : "rank";
+  const rallyModifier = useMemo(() => parseRallyModifier(rallyModifierRaw), [rallyModifierRaw]);
 
   const scrollToPanel = useCallback(
     (index: number) => {
@@ -659,12 +708,15 @@ export function MobileCaptainLayout({
             minQuotasEnabled={state.draft.minQuotasEnabled}
             maxQuotasEnabled={state.draft.maxQuotasEnabled}
             showRanks={showRanks}
+            showRallyIndex={showRallyIndex}
+            rallyModifier={rallyModifier}
             isOnClock={myTeam.id === state.onClockTeamId}
             ghostPlayers={captainGhostPlayers}
             isCaptainTeam
             captainTeamId={myTeamId}
             trade={trade}
             teamPendingTrades={teamPendingTradesFor(myTeam.id)}
+            rosterAverageMetric={rosterAverageMetric}
           />
         ) : null}
         {otherTeams.map((team) => (
@@ -674,10 +726,13 @@ export function MobileCaptainLayout({
             minQuotasEnabled={state.draft.minQuotasEnabled}
             maxQuotasEnabled={state.draft.maxQuotasEnabled}
             showRanks={showRanks}
+            showRallyIndex={showRallyIndex}
+            rallyModifier={rallyModifier}
             isOnClock={team.id === state.onClockTeamId}
             captainTeamId={myTeamId}
             trade={trade}
             teamPendingTrades={teamPendingTradesFor(team.id)}
+            rosterAverageMetric={rosterAverageMetric}
           />
         ))}
       </div>

@@ -19,12 +19,15 @@ import {
 } from "@/lib/draft/snake";
 import {
   allocateOffClockPickNumber,
+  buildLowestAverageNextRoundQueue,
   buildLowestAverageTurnQueue,
   findNextLowestAverageSlot,
+  getTeamsPickedInOpenRound,
   parsePickOrderMode,
   rosterAverageOverall,
   type DraftPickOrderMode,
   type TeamPickEligibility,
+  type TurnQueueSlot,
 } from "@/lib/draft/pick-order";
 import {
   computeTeamStats,
@@ -101,7 +104,9 @@ export type DraftState = {
   picksMade: number;
   totalPicks: number;
   onClockTeamId: string | null;
-  turnQueue: ReturnType<typeof buildTurnQueue>;
+  turnQueue: TurnQueueSlot[];
+  /** Lowest-avg mode: captains who already picked this round, ordered for next round. */
+  nextRoundQueue: Array<{ teamId: string }>;
   pickHistory: PickHistoryEntry[];
   undrafted: DraftPlayerComputed[];
   drafted: DraftPlayerComputed[];
@@ -125,6 +130,11 @@ function isDraftFullyAssigned(state: DraftState): boolean {
 
 function usedPickNumbersFromDraft(draft: { picks: Array<{ pickNumber: number }> }) {
   return new Set(draft.picks.map((pick) => pick.pickNumber));
+}
+
+function pickedThisRoundFromDraft(draft: { picks: Array<{ teamId: string; pickNumber: number }> }) {
+  const chronological = [...draft.picks].sort((a, b) => a.pickNumber - b.pickNumber);
+  return getTeamsPickedInOpenRound(chronological);
 }
 
 function teamEligibilityFromState(state: DraftState): TeamPickEligibility[] {
@@ -154,6 +164,7 @@ function resolveActivePickSlot(
       teamEligibilityFromState(state),
       canPickByTeamId,
       usedPickNumbers,
+      pickedThisRoundFromDraft(draft),
     );
   }
 
@@ -173,7 +184,7 @@ function resolveTurnQueue(
   draft: NonNullable<Awaited<ReturnType<typeof getDraftRecord>>>,
   state: DraftState,
   activePickNumber: number,
-) {
+): TurnQueueSlot[] {
   const remainingPicksByTeamId = Object.fromEntries(
     state.teams.map((team) => [team.id, team.remainingPicks]),
   );
@@ -188,6 +199,7 @@ function resolveTurnQueue(
       8,
       canPickByTeamId,
       usedPickNumbers,
+      pickedThisRoundFromDraft(draft),
     );
   }
 
@@ -201,6 +213,18 @@ function resolveTurnQueue(
     remainingPicksByTeamId,
     canPickByTeamId,
     usedPickNumbers,
+  );
+}
+
+function resolveNextRoundQueue(
+  draft: NonNullable<Awaited<ReturnType<typeof getDraftRecord>>>,
+  state: DraftState,
+): Array<{ teamId: string }> {
+  if (parsePickOrderMode(draft.pickOrderMode) !== "lowest_avg") return [];
+  return buildLowestAverageNextRoundQueue(
+    teamEligibilityFromState(state),
+    pickedThisRoundFromDraft(draft),
+    computeCanPickByTeamId(state),
   );
 }
 
@@ -358,6 +382,7 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
       stats: computeTeamStats(
         roster.map((r) => ({
           rank: r.rank,
+          overall: r.overall,
           displayOffensive: r.displayOffensive,
           displayDefensive: r.displayDefensive,
         })),
@@ -408,6 +433,7 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
     totalPicks: 0,
     onClockTeamId: null,
     turnQueue: [],
+    nextRoundQueue: [],
     pickHistory: [],
     undrafted,
     drafted,
@@ -462,6 +488,7 @@ export async function buildDraftState(draftId: string): Promise<DraftState | nul
       draftStateForPickChecks,
       activeSlot?.pickNumber ?? draft.nextPickNumber,
     ),
+    nextRoundQueue: resolveNextRoundQueue(draft, draftStateForPickChecks),
     pickHistory,
     undrafted: sortDraftPlayers(undrafted, displaySettings),
     drafted,

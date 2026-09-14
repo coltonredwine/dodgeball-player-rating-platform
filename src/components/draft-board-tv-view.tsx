@@ -37,7 +37,13 @@ import { isTradeRosterPlayerInactive } from "@/lib/draft/trade-validation";
 import type { QuotaLimits } from "@/lib/draft/quotas";
 import type { PublicBoardVisibility } from "@/lib/draft/public-board";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
-import { sortRosterPlayers, type DraftRosterSortMode } from "@/lib/draft/roster-sort";
+import { sortRosterPlayers, type DraftRosterSortMode, type SortDirection } from "@/lib/draft/roster-sort";
+import {
+  formatRosterAverageValue,
+  rosterAverageLabel,
+  type RosterAverageMetric,
+} from "@/lib/draft/roster-average";
+import { formatRallyIndex, parseRallyModifier, type RallyModifierOp } from "@/lib/draft/rally-modifier";
 
 const DEFAULT_VISIBILITY: PublicBoardVisibility = {
   showRanks: true,
@@ -108,6 +114,7 @@ type TeamState = {
   targetRosterSize: number;
   stats: {
     avgRank: number | null;
+    avgOverall?: number | null;
     avgOffensive: number | null;
     avgDefensive: number | null;
     offensiveCount: number;
@@ -137,13 +144,19 @@ type DraftState = {
       hideRanksOnCompleteTeams: boolean;
       showRanksOnCaptainView?: boolean;
       publicRosterSort?: DraftRosterSortMode;
+      publicRosterSortDirection?: SortDirection;
+      rosterAverageMetric?: RosterAverageMetric;
+      playerRanksEnabled?: boolean;
+      rallyModifier?: string;
     };
+    pickOrderMode?: "snake" | "lowest_avg";
   };
   currentPickNumber: number;
   picksMade: number;
   totalPicks: number;
   onClockTeamId: string | null;
   turnQueue: Array<{ pickNumber: number; teamId: string; round: number }>;
+  nextRoundQueue?: Array<{ teamId: string }>;
   pickHistory: Array<{
     pickNumber: number;
     teamId: string;
@@ -166,6 +179,7 @@ type Props = {
   visibility?: PublicBoardVisibility;
   linkPlayerProfiles?: boolean;
   rosterSortMode?: DraftRosterSortMode;
+  rosterSortDirection?: SortDirection;
 };
 
 const TV_PLAYER_AVATAR_SIZE = 36;
@@ -198,6 +212,7 @@ function PlayerPoolCard({
   showRanks = true,
   showSkillRatings = true,
   linkPlayerProfiles = true,
+  rallyLabel = null,
 }: {
   player: UndraftedPlayer;
   captain?: CaptainTvControls;
@@ -207,6 +222,7 @@ function PlayerPoolCard({
   showRanks?: boolean;
   showSkillRatings?: boolean;
   linkPlayerProfiles?: boolean;
+  rallyLabel?: string | null;
 }) {
   const scores = player.scores;
   const fullName = `${player.firstName} ${player.lastName}`;
@@ -261,6 +277,10 @@ function PlayerPoolCard({
                 surface="dark"
                 className="draft-tv-rank-glyph shrink-0"
               />
+            ) : rallyLabel ? (
+              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
+                {rallyLabel}
+              </span>
             ) : null}
             {showSkillRatings ? (
               <div className="flex min-w-0 flex-1 items-center justify-start gap-x-2">
@@ -317,10 +337,12 @@ function PlayerPoolCard({
 function GhostRosterSlot({
   player,
   showRank,
+  rallyLabel = null,
   linkPlayerProfiles = true,
 }: {
   player: UndraftedPlayer;
   showRank: boolean;
+  rallyLabel?: string | null;
   linkPlayerProfiles?: boolean;
 }) {
   const scores = player.scores;
@@ -351,6 +373,12 @@ function GhostRosterSlot({
               className="draft-tv-rank-glyph"
             />
           </div>
+        ) : scores && rallyLabel ? (
+          <div className="flex flex-1 items-center">
+            <span className="text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
+              {rallyLabel}
+            </span>
+          </div>
         ) : null}
       </div>
       {scores ? (
@@ -368,6 +396,7 @@ function GhostRosterSlot({
 function RosterSlot({
   player,
   showRank,
+  rallyLabel = null,
   linkPlayerProfiles = true,
   tradeActions,
   highlighted = false,
@@ -375,6 +404,7 @@ function RosterSlot({
 }: {
   player?: TeamState["roster"][number];
   showRank: boolean;
+  rallyLabel?: string | null;
   linkPlayerProfiles?: boolean;
   tradeActions?: ReactNode;
   highlighted?: boolean;
@@ -425,6 +455,12 @@ function RosterSlot({
               className="draft-tv-rank-glyph"
             />
           </div>
+        ) : rallyLabel ? (
+          <div className="flex flex-1 items-center">
+            <span className="text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
+              {rallyLabel}
+            </span>
+          </div>
         ) : null}
       </div>
       <LeaningIcon
@@ -453,6 +489,10 @@ function TeamCard({
   captainTeamId,
   teamPendingTrades = [],
   rosterSortMode = "pickOrder",
+  rosterSortDirection = "desc",
+  rosterAverageMetric = "rank",
+  rallyModifier = null,
+  showRallyIndex = false,
 }: {
   team: TeamState;
   isOnClock: boolean;
@@ -468,11 +508,15 @@ function TeamCard({
   captainTeamId?: string | null;
   teamPendingTrades?: PendingTradeProposal[];
   rosterSortMode?: DraftRosterSortMode;
+  rosterSortDirection?: SortDirection;
+  rosterAverageMetric?: RosterAverageMetric;
+  rallyModifier?: RallyModifierOp | null;
+  showRallyIndex?: boolean;
 }) {
   const emptySlots = Math.max(0, team.targetRosterSize - team.roster.length);
   const displayRoster = useMemo(
-    () => sortRosterPlayers(team.roster, rosterSortMode),
-    [rosterSortMode, team.roster],
+    () => sortRosterPlayers(team.roster, rosterSortMode, rosterSortDirection),
+    [rosterSortDirection, rosterSortMode, team.roster],
   );
   const incomingTrades =
     trade?.pendingTrades.filter((entry) => entry.counterpartyTeamId === team.id) ?? [];
@@ -480,6 +524,14 @@ function TeamCard({
     trade?.pendingTrades.filter((entry) => entry.proposingTeamId === team.id) ?? [];
   const hasOutgoingPending = outgoingTrades.length > 0;
   const quotasEnabled = areQuotasEnabled({ minQuotasEnabled, maxQuotasEnabled });
+  const showRosterAverage =
+    rosterAverageMetric === "calc" ? showSkillRatings || showRallyIndex : !hideRanks;
+  const rosterAverageText = formatRosterAverageValue(
+    team.stats,
+    rosterAverageMetric,
+    rosterAverageMetric === "calc" ? rallyModifier : null,
+  );
+  const averageHeading = rosterAverageLabel(rosterAverageMetric);
 
   function tradeRosterInactive(player: TeamState["roster"][number]) {
     if (!trade?.enabled) return false;
@@ -674,6 +726,11 @@ function TeamCard({
             key={player.playerId}
             player={player}
             showRank={!hideRanks}
+            rallyLabel={
+              showRallyIndex && hideRanks
+                ? formatRallyIndex(player.overall, rallyModifier)
+                : null
+            }
             linkPlayerProfiles={linkPlayerProfiles}
             tradeActions={renderRosterTradeActions(player)}
             inactive={tradeRosterInactive(player)}
@@ -690,6 +747,11 @@ function TeamCard({
                 key={`ghost-${player.playerId}`}
                 player={player}
                 showRank={!hideRanks}
+                rallyLabel={
+                  showRallyIndex && hideRanks && player.scores
+                    ? formatRallyIndex(player.scores.overall, rallyModifier)
+                    : null
+                }
                 linkPlayerProfiles={linkPlayerProfiles}
               />
             ))
@@ -700,16 +762,16 @@ function TeamCard({
       </div>
 
       <footer className="draft-tv-team-card__footer border-t border-[var(--draft-divider)] px-3 py-2.5 text-center text-sm text-[var(--draft-text-medium)]">
-        {!hideRanks ? (
+        {showRosterAverage ? (
           <p className="text-base font-medium tabular-nums text-[var(--draft-text-high)]">
-            Roster average: {team.stats.avgRank != null ? team.stats.avgRank.toFixed(2) : "—"}
+            {averageHeading}: {rosterAverageText}
           </p>
         ) : null}
         {showSkillRatings ? (
           <div
             className={[
               "flex items-center justify-center gap-3 text-sm tabular-nums",
-              hideRanks ? "" : "mt-1.5",
+              showRosterAverage ? "mt-1.5" : "",
             ].join(" ")}
           >
             <span className="inline-flex items-center gap-1">
@@ -736,12 +798,20 @@ export function DraftBoardTvView({
   visibility = DEFAULT_VISIBILITY,
   linkPlayerProfiles = true,
   rosterSortMode = "pickOrder",
+  rosterSortDirection = "desc",
 }: Props) {
   const [search, setSearch] = useState("");
   const [poolSort, setPoolSort] = useState<CaptainPoolSortField>(DEFAULT_CAPTAIN_POOL_SORT);
+  const [poolSortDirection, setPoolSortDirection] = useState<SortDirection>("desc");
   const isCaptainView = captain != null;
-  const showRanks = visibility.showRanks;
+  const playerRanksEnabled = state.draft.displaySettings.playerRanksEnabled !== false;
+  const showRanks = visibility.showRanks && playerRanksEnabled;
+  const showRallyIndex = !playerRanksEnabled;
   const showSkillRatings = visibility.showSkillRatings;
+  const rallyModifier = useMemo(
+    () => parseRallyModifier(state.draft.displaySettings.rallyModifier),
+    [state.draft.displaySettings.rallyModifier],
+  );
   const onClockTeam = state.teams.find((team) => team.id === state.onClockTeamId);
   const showQuotas = areQuotasEnabled(state.draft) && showRanks;
   const canPick = Boolean(captain?.isCaptainTurn && state.draft.isLive);
@@ -763,12 +833,17 @@ export function DraftBoardTvView({
       bookmarkIds: isCaptainView && captain ? captain.flaggedPlayerIds : undefined,
     });
 
-    return isCaptainView ? sortPoolSectionsByField(sections, poolSort) : sections;
-  }, [captain, isCaptainView, poolPlayers, poolSort, showRanks]);
+    return isCaptainView
+      ? sortPoolSectionsByField(sections, poolSort, poolSortDirection)
+      : sections;
+  }, [captain, isCaptainView, poolPlayers, poolSort, poolSortDirection, showRanks]);
 
   const sortedFlatPoolPlayers = useMemo(
-    () => (isCaptainView ? sortPoolPlayersByField(poolPlayers, poolSort) : poolPlayers),
-    [isCaptainView, poolPlayers, poolSort],
+    () =>
+      isCaptainView
+        ? sortPoolPlayersByField(poolPlayers, poolSort, poolSortDirection)
+        : poolPlayers,
+    [isCaptainView, poolPlayers, poolSort, poolSortDirection],
   );
 
   const captainGhostPlayers = useMemo(() => {
@@ -785,6 +860,11 @@ export function DraftBoardTvView({
   const pendingTrades = state.pendingTrades ?? captain?.trade?.pendingTrades ?? [];
 
   const upcomingQueue = state.turnQueue.slice(1);
+  const nextRoundQueue = state.nextRoundQueue ?? [];
+  const isLowestAvgMode = state.draft.pickOrderMode === "lowest_avg";
+  const rosterAverageMetric =
+    state.draft.displaySettings.rosterAverageMetric === "calc" ? "calc" : "rank";
+  const rosterAvgModifier = rosterAverageMetric === "calc" ? rallyModifier : null;
   const lastPick = state.pickHistory.at(-1) ?? null;
   const lastPickTeam = lastPick
     ? state.teams.find((team) => team.id === lastPick.teamId)
@@ -803,7 +883,17 @@ export function DraftBoardTvView({
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <TeamAvatar name={onClockTeam.captainName} color={onClockTeam.color} size={36} />
-                <p className="text-sm font-semibold text-[var(--draft-text-high)]">{onClockTeam.captainName}</p>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--draft-text-high)]">
+                    {onClockTeam.captainName}
+                  </p>
+                  {isLowestAvgMode ? (
+                    <p className="text-[10px] tabular-nums text-[var(--draft-text-medium)]">
+                      {rosterAverageLabel(rosterAverageMetric)}{" "}
+                      {formatRosterAverageValue(onClockTeam.stats, rosterAverageMetric, rosterAvgModifier)}
+                    </p>
+                  ) : null}
+                </div>
               </div>
             </div>
           ) : (
@@ -819,14 +909,14 @@ export function DraftBoardTvView({
               Up next
             </p>
             <ul className="space-y-2">
-              {upcomingQueue.length === 0 ? (
+              {upcomingQueue.length === 0 && nextRoundQueue.length === 0 ? (
                 <li className="text-sm text-[var(--draft-text-disabled)]">No upcoming picks.</li>
               ) : (
                 upcomingQueue.map((slot) => {
                   const team = state.teams.find((entry) => entry.id === slot.teamId);
                   return (
                     <li
-                      key={slot.pickNumber}
+                      key={`up-${slot.pickNumber}`}
                       className="flex items-center gap-2 rounded-lg border border-[var(--draft-divider)] bg-[var(--draft-surface-1)] px-2 py-2"
                     >
                       <span className="w-5 shrink-0 text-xs font-semibold tabular-nums text-[var(--draft-text-medium)]">
@@ -837,15 +927,64 @@ export function DraftBoardTvView({
                       ) : null}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm text-[var(--draft-text-high)]">{team?.captainName ?? "—"}</p>
-                        <p className="text-[10px] uppercase tracking-wide text-[var(--draft-text-disabled)]">
-                          Round {slot.round}
-                        </p>
+                        {isLowestAvgMode && team ? (
+                          <p className="text-[10px] tabular-nums text-[var(--draft-text-medium)]">
+                            {rosterAverageLabel(rosterAverageMetric)}{" "}
+                            {formatRosterAverageValue(team.stats, rosterAverageMetric, rosterAvgModifier)}
+                          </p>
+                        ) : (
+                          <p className="text-[10px] uppercase tracking-wide text-[var(--draft-text-disabled)]">
+                            This round
+                          </p>
+                        )}
                       </div>
                     </li>
                   );
                 })
               )}
             </ul>
+            {nextRoundQueue.length > 0 ? (
+              <div className="mt-4 border-t border-dashed border-[var(--draft-divider)] pt-3 opacity-55">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[var(--draft-text-disabled)]">
+                  Next round
+                </p>
+                <ul className="space-y-2">
+                  {nextRoundQueue.map((slot, index) => {
+                    const team = state.teams.find((entry) => entry.id === slot.teamId);
+                    return (
+                      <li
+                        key={`next-${slot.teamId}`}
+                        className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--draft-divider)] bg-[var(--draft-surface-1)]/50 px-2 py-2"
+                      >
+                        <span className="w-5 shrink-0 text-xs font-semibold tabular-nums text-[var(--draft-text-disabled)]">
+                          {index + 1}
+                        </span>
+                        {team ? (
+                          <span className="opacity-70">
+                            <TeamAvatar name={team.captainName} color={team.color} size={28} />
+                          </span>
+                        ) : null}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm text-[var(--draft-text-disabled)]">
+                            {team?.captainName ?? "—"}
+                          </p>
+                          {team ? (
+                            <p className="text-[10px] tabular-nums text-[var(--draft-text-disabled)]">
+                              {rosterAverageLabel(rosterAverageMetric)}{" "}
+                              {formatRosterAverageValue(team.stats, rosterAverageMetric, rosterAvgModifier)}
+                            </p>
+                          ) : (
+                            <p className="text-[10px] uppercase tracking-wide text-[var(--draft-text-disabled)]">
+                              Provisional
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
           </div>
 
           <div className="shrink-0 border-t border-[var(--draft-divider)] pt-3">
@@ -911,6 +1050,10 @@ export function DraftBoardTvView({
                     (entry) => entry.counterpartyTeamId === team.id,
                   )}
                   rosterSortMode={rosterSortMode}
+                  rosterSortDirection={rosterSortDirection}
+                  rosterAverageMetric={rosterAverageMetric}
+                  rallyModifier={rallyModifier}
+                  showRallyIndex={showRallyIndex}
                   ghostPlayers={
                     captain != null && team.id === captain.captainTeamId
                       ? captainGhostPlayers
@@ -972,6 +1115,8 @@ export function DraftBoardTvView({
               <CaptainPoolSortControl
                 value={poolSort}
                 onChange={setPoolSort}
+                direction={poolSortDirection}
+                onDirectionChange={setPoolSortDirection}
                 className="mt-2.5"
               />
             ) : null}
@@ -995,6 +1140,11 @@ export function DraftBoardTvView({
                     showRanks={showRanks}
                     showSkillRatings={showSkillRatings}
                     linkPlayerProfiles={linkPlayerProfiles}
+                    rallyLabel={
+                      showRallyIndex && player.scores
+                        ? formatRallyIndex(player.scores.overall, rallyModifier)
+                        : null
+                    }
                   />
                 )}
               />
@@ -1009,6 +1159,11 @@ export function DraftBoardTvView({
                   showRanks={showRanks}
                   showSkillRatings={showSkillRatings}
                   linkPlayerProfiles={linkPlayerProfiles}
+                  rallyLabel={
+                    showRallyIndex && player.scores
+                      ? formatRallyIndex(player.scores.overall, rallyModifier)
+                      : null
+                  }
                 />
               ))
             )}

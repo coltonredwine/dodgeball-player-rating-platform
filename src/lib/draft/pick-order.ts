@@ -21,6 +21,12 @@ export type TeamPickEligibility = {
   rosterAverage: number | null;
 };
 
+export type TurnQueueSlot = {
+  pickNumber: number;
+  teamId: string;
+  round: number;
+};
+
 /** Next unused pick number at or above `startPickNumber`. */
 export function nextUnusedPickNumber(startPickNumber: number, usedPickNumbers?: Set<number>): number {
   let pickNumber = Math.max(1, startPickNumber);
@@ -50,7 +56,75 @@ export function allocateOffClockPickNumber(
 }
 
 /**
- * Team with the lowest roster average picks next.
+ * Partition chronological picks into rounds where each team appears at most once
+ * per round. Returns team ids that have already picked in the open (latest) round.
+ */
+export function getTeamsPickedInOpenRound(
+  picksChronological: Array<{ teamId: string }>,
+): Set<string> {
+  const picked = new Set<string>();
+  for (const pick of picksChronological) {
+    if (picked.has(pick.teamId)) {
+      picked.clear();
+    }
+    picked.add(pick.teamId);
+  }
+  return picked;
+}
+
+function compareLowestAverage(a: TeamPickEligibility, b: TeamPickEligibility): number {
+  const avgA = a.rosterAverage ?? Number.NEGATIVE_INFINITY;
+  const avgB = b.rosterAverage ?? Number.NEGATIVE_INFINITY;
+  if (avgA !== avgB) return avgA - avgB;
+  return a.pickOrder - b.pickOrder;
+}
+
+function filterEligible(
+  teams: TeamPickEligibility[],
+  canPickByTeamId?: Record<string, boolean>,
+): TeamPickEligibility[] {
+  return teams.filter((team) => {
+    if (team.remainingPicks <= 0) return false;
+    if (canPickByTeamId && canPickByTeamId[team.id] === false) return false;
+    return true;
+  });
+}
+
+/**
+ * Teams still due to pick in the current lowest-avg round, lowest average first.
+ * When everyone eligible has already picked this round, starts a fresh round.
+ */
+export function getCurrentRoundTeams(
+  teams: TeamPickEligibility[],
+  pickedThisRound: Set<string>,
+  canPickByTeamId?: Record<string, boolean>,
+): { teams: TeamPickEligibility[]; isFreshRound: boolean } {
+  const eligible = filterEligible(teams, canPickByTeamId);
+  if (pickedThisRound.size === 0) {
+    return { teams: [...eligible].sort(compareLowestAverage), isFreshRound: true };
+  }
+  const remaining = eligible.filter((team) => !pickedThisRound.has(team.id));
+  if (remaining.length === 0) {
+    return { teams: [...eligible].sort(compareLowestAverage), isFreshRound: true };
+  }
+  return { teams: [...remaining].sort(compareLowestAverage), isFreshRound: false };
+}
+
+/** Teams that already picked this round, ordered by current roster average (next round preview). */
+export function getNextRoundPreviewTeams(
+  teams: TeamPickEligibility[],
+  pickedThisRound: Set<string>,
+  isFreshRound: boolean,
+  canPickByTeamId?: Record<string, boolean>,
+): TeamPickEligibility[] {
+  if (isFreshRound) return [];
+  return filterEligible(teams, canPickByTeamId)
+    .filter((team) => pickedThisRound.has(team.id))
+    .sort(compareLowestAverage);
+}
+
+/**
+ * Team with the lowest roster average among those still due this round.
  * Empty rosters count as lowest. Ties break by pickOrder ascending.
  */
 export function findNextLowestAverageSlot(
@@ -58,55 +132,54 @@ export function findNextLowestAverageSlot(
   teams: TeamPickEligibility[],
   canPickByTeamId?: Record<string, boolean>,
   usedPickNumbers?: Set<number>,
+  pickedThisRound: Set<string> = new Set(),
 ): { pickNumber: number; teamId: string } | null {
-  const eligible = teams.filter((team) => {
-    if (team.remainingPicks <= 0) return false;
-    if (canPickByTeamId && canPickByTeamId[team.id] === false) return false;
-    return true;
-  });
-  if (eligible.length === 0) return null;
-
-  eligible.sort((a, b) => {
-    const avgA = a.rosterAverage ?? Number.NEGATIVE_INFINITY;
-    const avgB = b.rosterAverage ?? Number.NEGATIVE_INFINITY;
-    if (avgA !== avgB) return avgA - avgB;
-    return a.pickOrder - b.pickOrder;
-  });
+  const { teams: due } = getCurrentRoundTeams(teams, pickedThisRound, canPickByTeamId);
+  if (due.length === 0) return null;
 
   return {
     pickNumber: nextUnusedPickNumber(startPickNumber, usedPickNumbers),
-    teamId: eligible[0]!.id,
+    teamId: due[0]!.id,
   };
 }
 
+/** One entry per captain still due this round (does not repeat the same captain). */
 export function buildLowestAverageTurnQueue(
   startPickNumber: number,
   teams: TeamPickEligibility[],
   count: number,
   canPickByTeamId?: Record<string, boolean>,
   usedPickNumbers?: Set<number>,
-): Array<{ pickNumber: number; teamId: string; round: number }> {
-  const remaining = new Map(teams.map((team) => [team.id, team.remainingPicks]));
+  pickedThisRound: Set<string> = new Set(),
+): TurnQueueSlot[] {
+  const { teams: due } = getCurrentRoundTeams(teams, pickedThisRound, canPickByTeamId);
   const used = new Set(usedPickNumbers ?? []);
-  const queue: Array<{ pickNumber: number; teamId: string; round: number }> = [];
+  const queue: TurnQueueSlot[] = [];
   let cursor = Math.max(1, startPickNumber);
+  const roundNumber = Math.max(1, Math.ceil(cursor / Math.max(teams.length, 1)));
 
-  while (queue.length < count) {
-    const snapshot: TeamPickEligibility[] = teams.map((team) => ({
-      ...team,
-      remainingPicks: remaining.get(team.id) ?? 0,
-    }));
-    const slot = findNextLowestAverageSlot(cursor, snapshot, canPickByTeamId, used);
-    if (!slot) break;
+  for (const team of due) {
+    if (queue.length >= count) break;
+    const pickNumber = nextUnusedPickNumber(cursor, used);
     queue.push({
-      pickNumber: slot.pickNumber,
-      teamId: slot.teamId,
-      round: Math.ceil(slot.pickNumber / Math.max(teams.length, 1)),
+      pickNumber,
+      teamId: team.id,
+      round: roundNumber,
     });
-    used.add(slot.pickNumber);
-    remaining.set(slot.teamId, (remaining.get(slot.teamId) ?? 0) - 1);
-    cursor = slot.pickNumber + 1;
+    used.add(pickNumber);
+    cursor = pickNumber + 1;
   }
 
   return queue;
+}
+
+export function buildLowestAverageNextRoundQueue(
+  teams: TeamPickEligibility[],
+  pickedThisRound: Set<string>,
+  canPickByTeamId?: Record<string, boolean>,
+): Array<{ teamId: string }> {
+  const { isFreshRound } = getCurrentRoundTeams(teams, pickedThisRound, canPickByTeamId);
+  return getNextRoundPreviewTeams(teams, pickedThisRound, isFreshRound, canPickByTeamId).map(
+    (team) => ({ teamId: team.id }),
+  );
 }

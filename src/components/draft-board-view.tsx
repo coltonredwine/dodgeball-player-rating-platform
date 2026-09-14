@@ -13,6 +13,11 @@ import { TeamQuotaTable } from "@/components/team-quota-table";
 import { filterPlayersByQuery } from "@/lib/player-search";
 import type { QuotaLimits } from "@/lib/draft/quotas";
 import { areQuotasEnabled, canPickRank } from "@/lib/draft/quotas";
+import {
+  formatRosterAverageValue,
+  rosterAverageLabel,
+} from "@/lib/draft/roster-average";
+import { formatRallyIndex, parseRallyModifier } from "@/lib/draft/rally-modifier";
 import { validateRosterMove } from "@/lib/draft/trade-validation";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
 import { formatCalcRankDisplay, type RankThresholds } from "@/lib/rankings/thresholds";
@@ -57,6 +62,7 @@ type TeamState = {
   targetRosterSize: number;
   stats: {
     avgRank: number | null;
+    avgOverall?: number | null;
     avgOffensive: number | null;
     avgDefensive: number | null;
     offensiveCount: number;
@@ -83,6 +89,7 @@ type DraftStatePayload = {
     minQuotasEnabled: boolean;
     maxQuotasEnabled: boolean;
     status: string;
+    pickOrderMode?: "snake" | "lowest_avg";
     rankThresholds: RankThresholds;
     displaySettings: {
       hideRanksOnCompleteTeams: boolean;
@@ -90,6 +97,10 @@ type DraftStatePayload = {
       publicShowRanks: boolean;
       publicShowSkillRatings: boolean;
       publicRosterSort?: "pickOrder" | "calc" | "lastName";
+      publicRosterSortDirection?: "asc" | "desc";
+      rosterAverageMetric?: "rank" | "calc";
+      playerRanksEnabled?: boolean;
+      rallyModifier?: string;
     };
   };
   currentPickNumber: number;
@@ -97,6 +108,7 @@ type DraftStatePayload = {
   totalPicks: number;
   onClockTeamId: string | null;
   turnQueue: Array<{ pickNumber: number; teamId: string; round: number }>;
+  nextRoundQueue?: Array<{ teamId: string }>;
   pickHistory: Array<{
     pickNumber: number;
     teamId: string;
@@ -140,6 +152,8 @@ function AdminPlayerProfile({
   viewOnly = false,
   currentTeamName,
   moveControls,
+  showPlayerRanks = true,
+  rallyModifierRaw = "",
 }: {
   player: UndraftedPlayer;
   onClockTeamId?: string | null;
@@ -154,6 +168,8 @@ function AdminPlayerProfile({
   forceWarnings?: string[];
   viewOnly?: boolean;
   currentTeamName?: string | null;
+  showPlayerRanks?: boolean;
+  rallyModifierRaw?: string;
   moveControls?: {
     fromTeamId: string;
     targetTeamId: string;
@@ -170,6 +186,9 @@ function AdminPlayerProfile({
   if (!scores) {
     return <p className="text-sm text-zinc-500">No scores available for this player.</p>;
   }
+
+  const rallyModifier = parseRallyModifier(rallyModifierRaw);
+  const rallyLabel = formatRallyIndex(scores.overall, rallyModifier);
 
   return (
     <div className="space-y-4">
@@ -195,10 +214,16 @@ function AdminPlayerProfile({
       </div>
 
       <div className="rounded border border-zinc-100 bg-zinc-50 p-3 text-sm">
-        <p className="font-medium">Ranking</p>
+        <p className="font-medium">{showPlayerRanks ? "Ranking" : "Rally Index"}</p>
         <p className="mt-2 inline-flex flex-wrap items-center gap-1.5 text-zinc-700">
-          <RankGlyph rank={scores.rank} size={18} />
-          <span>· CALC {scores.overall.toFixed(2)} ·</span>
+          {showPlayerRanks ? (
+            <>
+              <RankGlyph rank={scores.rank} size={18} />
+              <span>· CALC {scores.overall.toFixed(2)} ·</span>
+            </>
+          ) : (
+            <span className="font-semibold tabular-nums">{rallyLabel}</span>
+          )}
           <LeaningIcon leaning={scores.leaning} />
         </p>
         <p className="mt-1 text-zinc-600">
@@ -591,7 +616,13 @@ export function DraftBoardView({
   }
 
   if (mode === "board") {
-    return <DraftBoardTvView state={state} />;
+    return (
+      <DraftBoardTvView
+        state={state}
+        rosterSortMode={state.draft.displaySettings.publicRosterSort ?? "pickOrder"}
+        rosterSortDirection={state.draft.displaySettings.publicRosterSortDirection ?? "desc"}
+      />
+    );
   }
 
   if (mode === "public") {
@@ -601,6 +632,7 @@ export function DraftBoardView({
         visibility={publicBoardVisibility(state.draft.displaySettings)}
         linkPlayerProfiles={false}
         rosterSortMode={state.draft.displaySettings.publicRosterSort ?? "pickOrder"}
+        rosterSortDirection={state.draft.displaySettings.publicRosterSortDirection ?? "desc"}
       />
     );
   }
@@ -611,6 +643,12 @@ export function DraftBoardView({
   const isAdmin = mode === "admin";
   const rosterMovesEnabled = isAdmin && !adminReadOnly;
   const isDarkRoom = mode === "captain";
+  const playerRanksEnabled = draftState.draft.displaySettings.playerRanksEnabled !== false;
+  const showRallyIndex = !playerRanksEnabled;
+  const rallyModifier = parseRallyModifier(draftState.draft.displaySettings.rallyModifier);
+  const rosterAverageMetric =
+    draftState.draft.displaySettings.rosterAverageMetric === "calc" ? "calc" : "rank";
+  const rosterAvgModifier = rosterAverageMetric === "calc" ? rallyModifier : null;
   const showDraftCalcDisplay = !isAdmin;
   const theme = isDarkRoom ? DRAFT_ROOM_DARK : DRAFT_ROOM_LIGHT;
   const display = isBoard
@@ -793,7 +831,7 @@ export function DraftBoardView({
     setMoveTargetTeamId(draftState.teams.find((entry) => entry.id !== fromTeamId)?.id ?? "");
   }
 
-  const rankCountSummary = (
+  const rankCountSummary = playerRanksEnabled ? (
     <div className={display.rankSummary}>
       <div className={`flex flex-wrap ${display.rankSummaryGap} ${theme.rankSummary}`}>
         {RANKS_DESC.map((rank) => (
@@ -806,7 +844,7 @@ export function DraftBoardView({
         ))}
       </div>
     </div>
-  );
+  ) : null;
 
   const adminUndraftedTable = (
     <ScrollableListCard
@@ -821,7 +859,7 @@ export function DraftBoardView({
         <thead className="sticky top-0 z-10 border-b border-zinc-200 bg-white text-left text-xs text-zinc-500">
           <tr>
             <th className="px-3 py-2 font-medium">Name</th>
-            <th className="px-2 py-2 font-medium">Rank</th>
+            <th className="px-2 py-2 font-medium">{playerRanksEnabled ? "Rank" : "RAL"}</th>
             <th className="px-2 py-2 font-medium">Side</th>
           </tr>
         </thead>
@@ -852,7 +890,13 @@ export function DraftBoardView({
                 </td>
                 <td className="border-t border-zinc-100 px-2 py-1.5">
                   {player.scores ? (
-                    <RankGlyph rank={player.scores.rank} size={display.rankGlyph} surface={theme.rankGlyphSurface} />
+                    playerRanksEnabled ? (
+                      <RankGlyph rank={player.scores.rank} size={display.rankGlyph} surface={theme.rankGlyphSurface} />
+                    ) : (
+                      <span className="text-xs font-semibold tabular-nums">
+                        {formatRallyIndex(player.scores.overall, rallyModifier)}
+                      </span>
+                    )
                   ) : (
                     "—"
                   )}
@@ -894,7 +938,9 @@ export function DraftBoardView({
         >
           <tr>
             <th className={`${display.headCell} font-medium`}>Player</th>
-            <th className={`${display.headCell} font-medium`}>Rank</th>
+            <th className={`${display.headCell} font-medium`}>
+              {playerRanksEnabled ? "Rank" : "RAL"}
+            </th>
             <th className={`${display.headCell} text-right font-medium`}>
               <span className="inline-flex items-center justify-end gap-1.5">
                 OFF
@@ -915,7 +961,7 @@ export function DraftBoardView({
             </th>
             <th className={`${display.headCell} text-right font-medium`}>
               <span className="inline-flex items-center justify-end gap-1.5">
-                CAL
+                {playerRanksEnabled ? "CAL" : "RAL"}
                 <CalcStatGlyph size={display.rankGlyphSm} />
               </span>
             </th>
@@ -943,7 +989,13 @@ export function DraftBoardView({
                   </td>
                   <td className={`border-t ${theme.tableRowBorder} ${display.cell}`}>
                     {scores ? (
-                      <RankGlyph rank={scores.rank} size={display.rankGlyph} surface={theme.rankGlyphSurface} />
+                      playerRanksEnabled ? (
+                        <RankGlyph rank={scores.rank} size={display.rankGlyph} surface={theme.rankGlyphSurface} />
+                      ) : (
+                        <span className="text-xs font-semibold tabular-nums">
+                          {formatRallyIndex(scores.overall, rallyModifier)}
+                        </span>
+                      )
                     ) : (
                       "—"
                     )}
@@ -968,12 +1020,16 @@ export function DraftBoardView({
                   >
                     {scores
                       ? showDraftCalcDisplay
-                        ? formatCalcRankDisplay(
-                            scores.overall,
-                            scores.rank,
-                            draftState.draft.rankThresholds,
-                          )
-                        : scores.overall.toFixed(2)
+                        ? playerRanksEnabled
+                          ? formatCalcRankDisplay(
+                              scores.overall,
+                              scores.rank,
+                              draftState.draft.rankThresholds,
+                            )
+                          : formatRallyIndex(scores.overall, rallyModifier)
+                        : playerRanksEnabled
+                          ? scores.overall.toFixed(2)
+                          : formatRallyIndex(scores.overall, rallyModifier)
                       : "—"}
                   </td>
                 </tr>
@@ -1001,7 +1057,8 @@ export function DraftBoardView({
     >
       {state.teams.map((team) => {
         const hideRosterRank =
-          draftState.draft.displaySettings.hideRanksOnCompleteTeams && team.remainingPicks <= 0;
+          !playerRanksEnabled ||
+          (draftState.draft.displaySettings.hideRanksOnCompleteTeams && team.remainingPicks <= 0);
         const isCaptainTeam = mode === "captain" && team.id === captainTeamId;
         const captainCardFlexClass =
           mode === "captain"
@@ -1110,6 +1167,10 @@ export function DraftBoardView({
                           size={display.rosterRankGlyph}
                           surface={theme.rankGlyphSurface}
                         />
+                      ) : showRallyIndex ? (
+                        <span className="text-[11px] font-semibold tabular-nums">
+                          {formatRallyIndex(p.overall, rallyModifier)}
+                        </span>
                       ) : null}
                       <LeaningIcon leaning={p.leaning} size={display.rosterLeaningIcon} />
                     </span>
@@ -1122,11 +1183,28 @@ export function DraftBoardView({
           {!isAdmin ? (
             <div className={`${display.cardSectionGap} shrink-0 text-center ${theme.cardSection} ${theme.cardStats} ${display.stats} ${display.cardSectionPad}`}>
               <p className={`${theme.cardSectionLabel} text-center ${display.cardSectionLabel}`}>Team stats</p>
-              {team.stats.avgRank != null ? (
-                <p className="tabular-nums">Roster average: {team.stats.avgRank.toFixed(2)}</p>
-              ) : (
-                <p className={theme.cardStatsMuted}>Roster average: —</p>
-              )}
+              {(() => {
+                const metric = rosterAverageMetric;
+                const showAverage =
+                  metric === "calc"
+                    ? true
+                    : playerRanksEnabled &&
+                      !(
+                        draftState.draft.displaySettings.hideRanksOnCompleteTeams &&
+                        team.remainingPicks <= 0
+                      );
+                if (!showAverage) {
+                  return (
+                    <p className={theme.cardStatsMuted}>{rosterAverageLabel(metric)}: —</p>
+                  );
+                }
+                return (
+                  <p className="tabular-nums">
+                    {rosterAverageLabel(metric)}:{" "}
+                    {formatRosterAverageValue(team.stats, metric, rosterAvgModifier)}
+                  </p>
+                );
+              })()}
               <div className="mt-1 flex flex-col items-center gap-1">
                 <p>Roster Balance</p>
                 <p className="flex items-center justify-center gap-1.5 tabular-nums">
@@ -1162,6 +1240,8 @@ export function DraftBoardView({
       />
     ) : null;
 
+  const nextRoundQueue = state.nextRoundQueue ?? [];
+  const isLowestAvgMode = state.draft.pickOrderMode === "lowest_avg";
   const adminTurnQueuePanel =
     onClock && state.turnQueue.length > 0 ? (
       <div className={`rounded border-2 ${theme.turnSection} ${display.turnSection}`}>
@@ -1171,7 +1251,7 @@ export function DraftBoardView({
             const isCurrent = index === 0;
             return (
               <div
-                key={slot.pickNumber}
+                key={`current-${slot.pickNumber}`}
                 className={`flex min-w-0 flex-col justify-center rounded px-3 py-2 ${
                   isCurrent ? "bg-zinc-50 ring-2 ring-zinc-300" : "border border-zinc-200 bg-white"
                 }`}
@@ -1192,10 +1272,41 @@ export function DraftBoardView({
                 <p className="mt-1 truncate text-sm font-semibold">
                   #{slot.pickNumber} {team?.captainName}
                 </p>
+                {isLowestAvgMode && team ? (
+                  <p className="mt-0.5 text-xs tabular-nums text-zinc-500">
+                    {rosterAverageLabel(rosterAverageMetric)}{" "}
+                    {formatRosterAverageValue(team.stats, rosterAverageMetric, rosterAvgModifier)}
+                  </p>
+                ) : null}
               </div>
             );
           })}
         </div>
+        {isLowestAvgMode && nextRoundQueue.length > 0 ? (
+          <div className="mt-3 border-t border-dashed border-zinc-300 pt-3">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+              Next round
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {nextRoundQueue.map((slot, index) => {
+                const team = state.teams.find((t) => t.id === slot.teamId);
+                return (
+                  <div
+                    key={`next-${slot.teamId}`}
+                    className="rounded border border-zinc-200 bg-zinc-50/80 px-2.5 py-1.5 text-xs text-zinc-400"
+                  >
+                    <span className="tabular-nums">{index + 1}.</span> {team?.captainName ?? "—"}
+                    {team ? (
+                      <span className="ml-1 tabular-nums">
+                        ({formatRosterAverageValue(team.stats, rosterAverageMetric, rosterAvgModifier)})
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
     ) : (
       <div className="rounded border border-zinc-200 bg-white p-3 text-sm text-zinc-500 shadow-sm">
@@ -1213,6 +1324,8 @@ export function DraftBoardView({
               player={selectedRosterPlayer}
               viewOnly={adminReadOnly}
               currentTeamName={selectedRosterFromTeam?.captainName ?? null}
+              showPlayerRanks={playerRanksEnabled}
+              rallyModifierRaw={draftState.draft.displaySettings.rallyModifier ?? ""}
               moveControls={
                 adminReadOnly
                   ? undefined
@@ -1311,6 +1424,8 @@ export function DraftBoardView({
             draftBlockedReason={draftBlockedReason}
             forceWarnings={forceWarnings}
             viewOnly={adminReadOnly}
+            showPlayerRanks={playerRanksEnabled}
+            rallyModifierRaw={draftState.draft.displaySettings.rallyModifier ?? ""}
           />
         </div>
       ) : (

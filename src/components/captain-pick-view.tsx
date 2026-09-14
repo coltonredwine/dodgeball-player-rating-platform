@@ -14,7 +14,6 @@ import { TeamQuotaTable } from "@/components/team-quota-table";
 import { LeaningIcon } from "@/components/player-leaning-icon";
 import { CalcStatGlyph, DefenseStatGlyph, OffenseStatGlyph, PsychStatGlyph } from "@/components/player-stat-glyphs";
 import { RankGlyph } from "@/components/rank-glyph";
-import { formatRankAverage } from "@/lib/rankings/rank-labels";
 import { formatCalcRankDisplay, type RankThresholds } from "@/lib/rankings/thresholds";
 import { DRAFT_ROOM_DARK } from "@/lib/draft-room-theme";
 import type { QuotaLimits } from "@/lib/draft/quotas";
@@ -22,11 +21,10 @@ import { CaptainPoolSortControl } from "@/components/captain-pool-sort-control";
 import { PlayerPoolRankSections } from "@/components/player-pool-rank-sections";
 import { sortUndraftedWithBookmarks } from "@/lib/draft/bookmarks";
 import { groupPoolPlayersIntoSections } from "@/lib/draft/pool-sections";
-import {
-  DEFAULT_CAPTAIN_POOL_SORT,
-  sortPoolSectionsByField,
-  type CaptainPoolSortField,
-} from "@/lib/draft/pool-sort";
+import { DEFAULT_CAPTAIN_POOL_SORT, sortPoolPlayersByField, sortPoolSectionsByField, type CaptainPoolSortField } from "@/lib/draft/pool-sort";
+import { formatRosterAverageValue, getRosterAverageValue, rosterAverageLabel } from "@/lib/draft/roster-average";
+import { formatRallyIndex, parseRallyModifier } from "@/lib/draft/rally-modifier";
+import type { SortDirection } from "@/lib/draft/roster-sort";
 import { areQuotasEnabled } from "@/lib/draft/quotas";
 import { filterPlayersByQuery } from "@/lib/player-search";
 import { getTradeEligibleOfferPlayerIds, getTradeEligibleTargetPlayerIds } from "@/lib/draft/trade-validation";
@@ -70,6 +68,7 @@ type TeamRow = {
   rankCounts: Record<number, number>;
   stats: {
     avgRank: number | null;
+    avgOverall?: number | null;
     avgOffensive: number | null;
     avgDefensive: number | null;
     offensiveCount: number;
@@ -89,10 +88,16 @@ type DraftStateResponse = {
     displaySettings: {
       showRanksOnCaptainView: boolean;
       hideRanksOnCompleteTeams: boolean;
+      publicRosterSort?: "pickOrder" | "calc" | "lastName";
+      publicRosterSortDirection?: "asc" | "desc";
+      rosterAverageMetric?: "rank" | "calc";
+      playerRanksEnabled?: boolean;
+      rallyModifier?: string;
     };
   };
   onClockTeamId: string | null;
   turnQueue: Array<{ pickNumber: number; teamId: string; round: number }>;
+  nextRoundQueue?: Array<{ teamId: string }>;
   pickHistory: Array<{
     pickNumber: number;
     teamId: string;
@@ -184,10 +189,18 @@ function CaptainPickPanel({
 }) {
   const myTeam = state.teams.find((t) => t.id === state.captainTeamId);
   const canPick = state.isCaptainTurn && state.draft.isLive;
-  const showRanks = state.draft.displaySettings.showRanksOnCaptainView;
+  const playerRanksEnabled = state.draft.displaySettings.playerRanksEnabled !== false;
+  const showRanks =
+    playerRanksEnabled && state.draft.displaySettings.showRanksOnCaptainView;
+  const showRallyIndex = !playerRanksEnabled;
+  const rallyModifier = parseRallyModifier(state.draft.displaySettings.rallyModifier);
+  const rosterAverageMetric =
+    state.draft.displaySettings.rosterAverageMetric === "calc" ? "calc" : "rank";
+  const rosterAvgModifier = rosterAverageMetric === "calc" ? rallyModifier : null;
   const isMobile = variant === "mobile";
   const [search, setSearch] = useState("");
   const [poolSort, setPoolSort] = useState<CaptainPoolSortField>(DEFAULT_CAPTAIN_POOL_SORT);
+  const [poolSortDirection, setPoolSortDirection] = useState<SortDirection>("desc");
   const poolPlayers = useMemo(() => {
     let players = sortUndraftedWithBookmarks(state.undrafted, state.flaggedPlayerIds);
     if (isMobile) {
@@ -196,11 +209,16 @@ function CaptainPickPanel({
     return players;
   }, [isMobile, search, state.flaggedPlayerIds, state.undrafted]);
   const poolSections = useMemo(() => {
+    if (!showRanks) return null;
     const sections = groupPoolPlayersIntoSections(poolPlayers, {
       bookmarkIds: state.flaggedPlayerIds,
     });
-    return sortPoolSectionsByField(sections, poolSort);
-  }, [poolPlayers, poolSort, state.flaggedPlayerIds]);
+    return sortPoolSectionsByField(sections, poolSort, poolSortDirection);
+  }, [poolPlayers, poolSort, poolSortDirection, showRanks, state.flaggedPlayerIds]);
+  const sortedFlatPoolPlayers = useMemo(
+    () => sortPoolPlayersByField(poolPlayers, poolSort, poolSortDirection),
+    [poolPlayers, poolSort, poolSortDirection],
+  );
 
   function handleChoose(playerId: string) {
     setPendingPickId(playerId);
@@ -220,7 +238,9 @@ function CaptainPickPanel({
           <h2 className="text-lg font-semibold">Your team</h2>
           <p className={`mt-1 text-sm ${theme.cardMeta}`}>
             {myTeam.roster.length}/{myTeam.targetRosterSize}
-            {myTeam.stats.avgRank != null ? ` · Avg ${formatRankAverage(myTeam.stats.avgRank)}` : ""}
+            {getRosterAverageValue(myTeam.stats, rosterAverageMetric, rosterAvgModifier) != null
+              ? ` · ${rosterAverageLabel(rosterAverageMetric)} ${formatRosterAverageValue(myTeam.stats, rosterAverageMetric, rosterAvgModifier)}`
+              : ""}
           </p>
         </div>
       ) : null}
@@ -238,7 +258,7 @@ function CaptainPickPanel({
               {myTeam.roster.length}/{myTeam.targetRosterSize}
             </span>
           </p>
-          {areQuotasEnabled(state.draft) && myTeam ? (
+          {showRanks && areQuotasEnabled(state.draft) && myTeam ? (
             <div className="mt-2">
               <TeamQuotaTable
                 quotaNeed={myTeam.quotaNeed}
@@ -279,7 +299,12 @@ function CaptainPickPanel({
       ) : null}
 
       {poolPlayers.length > 0 ? (
-        <CaptainPoolSortControl value={poolSort} onChange={setPoolSort} />
+        <CaptainPoolSortControl
+          value={poolSort}
+          onChange={setPoolSort}
+          direction={poolSortDirection}
+          onDirectionChange={setPoolSortDirection}
+        />
       ) : null}
 
       <div className="space-y-1 lg:space-y-2">
@@ -288,118 +313,154 @@ function CaptainPickPanel({
             {search ? "No matching players." : "No players available."}
           </p>
         ) : (
-        <PlayerPoolRankSections
-          sections={poolSections}
-          rankGlyphSurface={theme.rankGlyphSurface}
-          renderPlayer={(p, section) => {
-          const eligible = areQuotasEnabled(state.draft)
-            ? (state.eligibility[p.playerId] ?? false)
-            : true;
-          const inactive = areQuotasEnabled(state.draft) && !eligible;
-          const showChoose = eligible;
-          const chooseDisabled = !canPick;
-          const isPending = pendingPickId === p.playerId;
-          const isExpanded = expandedId === p.playerId;
-          const isSaved = state.flaggedPlayerIds.includes(p.playerId);
-          const savedHighlight = isSaved && !inactive;
-          const showRankInCard = showRanks && section.kind !== "rank";
+          (() => {
+            function renderPoolPlayer(
+              p: PlayerRow,
+              options: { showRankInCard: boolean },
+            ) {
+              const eligible = areQuotasEnabled(state.draft)
+                ? (state.eligibility[p.playerId] ?? false)
+                : true;
+              const inactive = areQuotasEnabled(state.draft) && !eligible;
+              const showChoose = eligible;
+              const chooseDisabled = !canPick;
+              const isPending = pendingPickId === p.playerId;
+              const isExpanded = expandedId === p.playerId;
+              const isSaved = state.flaggedPlayerIds.includes(p.playerId);
+              const savedHighlight = isSaved && !inactive;
+              const rallyLabel =
+                showRallyIndex && p.scores
+                  ? formatRallyIndex(p.scores.overall, rallyModifier)
+                  : null;
+              const calcDisplay =
+                p.scores == null
+                  ? null
+                  : showRallyIndex
+                    ? formatRallyIndex(p.scores.overall, rallyModifier)
+                    : formatPlayerCalc(p.scores, state.draft.rankThresholds);
 
-          return (
-            <div
-              key={p.playerId}
-              className={[
-                `rounded border ${theme.cardBorder} ${theme.card}`,
-                inactive ? "draft-player-inactive" : "",
-                isPending ? "border-green-600/80 bg-green-950/30 ring-1 ring-green-700/60" : "",
-                savedHighlight && !isPending ? "draft-captain-saved-player" : "",
-              ].join(" ")}
-            >
-              <div className="hidden items-center gap-3 px-3 py-2 text-sm lg:flex">
-                <CaptainBookmarkButton active={isSaved} onClick={() => onFlag(p.playerId)} />
-                {p.scores ? <LeaningIcon leaning={p.scores.leaning} size={16} /> : null}
-                <span className="min-w-0 flex-1 truncate font-medium">
-                  {p.firstName} {p.lastName}
-                </span>
-                {p.scores ? (
-                  <>
-                    {showRankInCard ? (
-                      <RankGlyph rank={p.scores.rank} size={18} surface={theme.rankGlyphSurface} />
-                    ) : null}
-                    <span className={`inline-flex shrink-0 items-center gap-1 tabular-nums ${theme.cardStats}`}>
-                      <OffenseStatGlyph size={14} />
-                      {p.scores.displayOffensive.toFixed(2)}
-                    </span>
-                    <span className={`inline-flex shrink-0 items-center gap-1 tabular-nums ${theme.cardStats}`}>
-                      <DefenseStatGlyph size={14} />
-                      {p.scores.displayDefensive.toFixed(2)}
-                    </span>
-                    <span className={`inline-flex shrink-0 items-center gap-1 tabular-nums ${theme.cardStats}`}>
-                      <PsychStatGlyph size={14} />
-                      {p.scores.displayPsych.toFixed(2)}
-                    </span>
-                    <span className={`shrink-0 ${theme.cardMeta}`}>|</span>
-                    <span className={`inline-flex shrink-0 items-center gap-1 tabular-nums ${theme.cardStats}`}>
-                      <CalcStatGlyph size={14} />
-                      {formatPlayerCalc(p.scores, state.draft.rankThresholds)}
-                    </span>
-                  </>
-                ) : null}
-                <CaptainPlayerPickActions
-                  playerId={p.playerId}
-                  showChoose={showChoose}
-                  chooseDisabled={chooseDisabled}
-                  isPending={isPending}
-                  onChoose={handleChoose}
-                  onConfirm={onConfirm}
-                  onCancel={handleCancel}
-                />
-              </div>
-
-              <div className="lg:hidden">
-                <div className="flex items-center gap-2 px-3 py-2">
-                  <PlayerAvatar
-                    playerId={p.playerId}
-                    link={p.link}
-                    name={`${p.firstName} ${p.lastName}`}
-                    size={36}
-                  />
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                    onClick={() => setExpandedId(isExpanded ? null : p.playerId)}
-                  >
-                    <span className="truncate font-medium">
+              return (
+                <div
+                  key={p.playerId}
+                  className={[
+                    `rounded border ${theme.cardBorder} ${theme.card}`,
+                    inactive ? "draft-player-inactive" : "",
+                    isPending ? "border-green-600/80 bg-green-950/30 ring-1 ring-green-700/60" : "",
+                    savedHighlight && !isPending ? "draft-captain-saved-player" : "",
+                  ].join(" ")}
+                >
+                  <div className="hidden items-center gap-3 px-3 py-2 text-sm lg:flex">
+                    <CaptainBookmarkButton active={isSaved} onClick={() => onFlag(p.playerId)} />
+                    {p.scores ? <LeaningIcon leaning={p.scores.leaning} size={16} /> : null}
+                    <span className="min-w-0 flex-1 truncate font-medium">
                       {p.firstName} {p.lastName}
                     </span>
-                    {p.scores && showRankInCard ? (
-                      <RankGlyph rank={p.scores.rank} size={18} surface={theme.rankGlyphSurface} />
+                    {p.scores ? (
+                      <>
+                        {options.showRankInCard ? (
+                          <RankGlyph rank={p.scores.rank} size={18} surface={theme.rankGlyphSurface} />
+                        ) : rallyLabel ? (
+                          <span className="shrink-0 text-xs font-semibold tabular-nums">{rallyLabel}</span>
+                        ) : null}
+                        <span className={`inline-flex shrink-0 items-center gap-1 tabular-nums ${theme.cardStats}`}>
+                          <OffenseStatGlyph size={14} />
+                          {p.scores.displayOffensive.toFixed(2)}
+                        </span>
+                        <span className={`inline-flex shrink-0 items-center gap-1 tabular-nums ${theme.cardStats}`}>
+                          <DefenseStatGlyph size={14} />
+                          {p.scores.displayDefensive.toFixed(2)}
+                        </span>
+                        <span className={`inline-flex shrink-0 items-center gap-1 tabular-nums ${theme.cardStats}`}>
+                          <PsychStatGlyph size={14} />
+                          {p.scores.displayPsych.toFixed(2)}
+                        </span>
+                        {showRallyIndex ? null : (
+                          <>
+                            <span className={`shrink-0 ${theme.cardMeta}`}>|</span>
+                            <span className={`inline-flex shrink-0 items-center gap-1 tabular-nums ${theme.cardStats}`}>
+                              <CalcStatGlyph size={14} />
+                              {calcDisplay}
+                            </span>
+                          </>
+                        )}
+                      </>
                     ) : null}
-                  </button>
-                  {p.scores ? (
-                    <LeaningIcon leaning={p.scores.leaning} size={20} monochrome className="shrink-0" />
-                  ) : null}
-                  <CaptainPlayerPickActions
-                    playerId={p.playerId}
-                    showChoose={showChoose}
-                    chooseDisabled={chooseDisabled}
-                    isPending={isPending}
-                    onChoose={handleChoose}
-                    onConfirm={onConfirm}
-                    onCancel={handleCancel}
-                  />
+                    <CaptainPlayerPickActions
+                      playerId={p.playerId}
+                      showChoose={showChoose}
+                      chooseDisabled={chooseDisabled}
+                      isPending={isPending}
+                      onChoose={handleChoose}
+                      onConfirm={onConfirm}
+                      onCancel={handleCancel}
+                    />
+                  </div>
+
+                  <div className="lg:hidden">
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <PlayerAvatar
+                        playerId={p.playerId}
+                        link={p.link}
+                        name={`${p.firstName} ${p.lastName}`}
+                        size={36}
+                      />
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        onClick={() => setExpandedId(isExpanded ? null : p.playerId)}
+                      >
+                        <span className="truncate font-medium">
+                          {p.firstName} {p.lastName}
+                        </span>
+                        {p.scores && options.showRankInCard ? (
+                          <RankGlyph rank={p.scores.rank} size={18} surface={theme.rankGlyphSurface} />
+                        ) : rallyLabel ? (
+                          <span className="shrink-0 text-xs font-semibold tabular-nums">{rallyLabel}</span>
+                        ) : null}
+                      </button>
+                      {p.scores ? (
+                        <LeaningIcon leaning={p.scores.leaning} size={20} monochrome className="shrink-0" />
+                      ) : null}
+                      <CaptainPlayerPickActions
+                        playerId={p.playerId}
+                        showChoose={showChoose}
+                        chooseDisabled={chooseDisabled}
+                        isPending={isPending}
+                        onChoose={handleChoose}
+                        onConfirm={onConfirm}
+                        onCancel={handleCancel}
+                      />
+                    </div>
+                    {isExpanded && p.scores ? (
+                      <MobilePlayerExpandedStats
+                        scores={p.scores}
+                        isSaved={isSaved}
+                        onToggleSave={() => onFlag(p.playerId)}
+                      />
+                    ) : null}
+                  </div>
                 </div>
-                {isExpanded && p.scores ? (
-                  <MobilePlayerExpandedStats
-                    scores={p.scores}
-                    isSaved={isSaved}
-                    onToggleSave={() => onFlag(p.playerId)}
-                  />
-                ) : null}
-              </div>
-            </div>
-          );
-        }}
-        />
+              );
+            }
+
+            if (showRanks && poolSections) {
+              return (
+                <PlayerPoolRankSections
+                  sections={poolSections}
+                  rankGlyphSurface={theme.rankGlyphSurface}
+                  renderPlayer={(p, section) =>
+                    renderPoolPlayer(p, {
+                      showRankInCard: showRanks && section.kind !== "rank",
+                    })
+                  }
+                />
+              );
+            }
+
+            return sortedFlatPoolPlayers.map((p) =>
+              renderPoolPlayer(p, { showRankInCard: false }),
+            );
+          })()
         )}
       </div>
 
@@ -605,7 +666,12 @@ export function CaptainPickView({ draftId, nav }: { draftId: string; nav: AppNav
       <div className="lg:hidden">
         <MobileCaptainLayout
           state={state}
-          showRanks={state.draft.displaySettings.showRanksOnCaptainView}
+          showRanks={
+            (state.draft.displaySettings.playerRanksEnabled !== false) &&
+            state.draft.displaySettings.showRanksOnCaptainView
+          }
+          showRallyIndex={state.draft.displaySettings.playerRanksEnabled === false}
+          rallyModifierRaw={state.draft.displaySettings.rallyModifier ?? ""}
           onOpenTeamRef={openTeamRef}
           trade={
             tradeEnabled
@@ -653,12 +719,16 @@ export function CaptainPickView({ draftId, nav }: { draftId: string; nav: AppNav
       <section className="hidden min-h-0 flex-1 flex-col px-3 pb-3 pt-2 sm:px-4 lg:flex">
         <DraftBoardTvView
           state={state}
+          rosterSortMode={state.draft.displaySettings.publicRosterSort ?? "pickOrder"}
+          rosterSortDirection={state.draft.displaySettings.publicRosterSortDirection ?? "desc"}
           captain={{
             captainTeamId: state.captainTeamId,
             flaggedPlayerIds: state.flaggedPlayerIds,
             eligibility: state.eligibility,
             isCaptainTurn: state.isCaptainTurn,
-            showRanksOnCaptainView: state.draft.displaySettings.showRanksOnCaptainView,
+            showRanksOnCaptainView:
+              (state.draft.displaySettings.playerRanksEnabled !== false) &&
+              state.draft.displaySettings.showRanksOnCaptainView,
             pendingPickId,
             pickError: error,
             onChoosePlayer: setPendingPickId,

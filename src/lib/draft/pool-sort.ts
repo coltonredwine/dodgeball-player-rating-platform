@@ -52,20 +52,42 @@ function comparePoolPlayers<T extends SortablePoolPlayer>(
 export function sortPoolPlayersByField<T extends SortablePoolPlayer>(
   players: T[],
   field: CaptainPoolSortField,
+  direction: "asc" | "desc" = "desc",
 ): T[] {
-  return [...players].sort((a, b) => comparePoolPlayers(a, b, field));
+  const sorted = [...players].sort((a, b) => comparePoolPlayers(a, b, field));
+  return direction === "desc" ? sorted : sorted.reverse();
 }
 
-/** Sort players within rank sections; saved bookmarks keep their bookmark order. */
+/** Sort players within rank sections, and order rank sections by direction.
+ * Descending keeps high ranks first (5→1). Ascending puts rank 1 at the top.
+ * Saved bookmarks stay first. */
 export function sortPoolSectionsByField<T extends SortablePoolPlayer>(
   sections: PoolPlayerSection<T>[],
   field: CaptainPoolSortField,
+  direction: "asc" | "desc" = "desc",
 ): PoolPlayerSection<T>[] {
-  return sections.map((section) => {
-    if (section.kind === "saved") return section;
-    return {
+  const saved: PoolPlayerSection<T>[] = [];
+  const ranked: PoolPlayerSection<T>[] = [];
+
+  for (const section of sections) {
+    if (section.kind === "saved") {
+      saved.push(section);
+      continue;
+    }
+    ranked.push({
       ...section,
-      players: sortPoolPlayersByField(section.players, field),
-    };
+      players: sortPoolPlayersByField(section.players, field, direction),
+    });
+  }
+
+  ranked.sort((a, b) => {
+    if (a.kind !== "rank" || b.kind !== "rank") return 0;
+    // Unranked (0) always last.
+    if (a.rank === 0) return 1;
+    if (b.rank === 0) return -1;
+    // Descending puts rank 1 at the top; ascending keeps high ranks first (5→1).
+    return direction === "desc" ? a.rank - b.rank : b.rank - a.rank;
   });
+
+  return [...saved, ...ranked];
 }

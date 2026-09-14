@@ -14,6 +14,7 @@ export type ImportableRatingRow = {
   evasion: number | null;
   nerve: number | null;
   unknownPlayer: boolean;
+  needsReview: boolean;
 };
 
 export const CSV_FORMAT_ERROR =
@@ -185,6 +186,7 @@ export function emptyRatingRows(rows: ImportableRatingRow[]) {
   return rows.map((row) => ({
     ...row,
     unknownPlayer: false,
+    needsReview: false,
     power: null,
     accuracy: null,
     intimidation: null,

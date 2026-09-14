@@ -8,10 +8,12 @@ export type PublicBoardVisibility = {
 };
 
 export function publicBoardVisibility(
-  settings: Pick<DraftDisplaySettings, "publicShowRanks" | "publicShowSkillRatings">,
+  settings: Pick<DraftDisplaySettings, "publicShowRanks" | "publicShowSkillRatings"> & {
+    playerRanksEnabled?: boolean;
+  },
 ): PublicBoardVisibility {
   return {
-    showRanks: settings.publicShowRanks,
+    showRanks: (settings.playerRanksEnabled ?? true) && settings.publicShowRanks,
     showSkillRatings: settings.publicShowSkillRatings,
   };
 }
@@ -27,7 +29,13 @@ export function redactPublicDraftState(
   state: DraftState,
   settings: DraftDisplaySettings,
 ): DraftState {
-  if (settings.publicShowRanks && settings.publicShowSkillRatings) {
+  const playerRanksEnabled = settings.playerRanksEnabled ?? true;
+  const showRanks = playerRanksEnabled && settings.publicShowRanks;
+  const showSkills = settings.publicShowSkillRatings;
+  // When ranks are disabled, keep overall so public cards can show Rally Index (RAL).
+  const keepOverall = showSkills || !playerRanksEnabled;
+
+  if (showRanks && showSkills && playerRanksEnabled) {
     return state;
   }
 
@@ -42,21 +50,19 @@ export function redactPublicDraftState(
     scores: T,
   ): T => ({
     ...scores,
-    rank: settings.publicShowRanks ? scores.rank : 0,
-    overall: settings.publicShowSkillRatings ? scores.overall : 0,
-    displayOffensive: settings.publicShowSkillRatings ? scores.displayOffensive : 0,
-    displayDefensive: settings.publicShowSkillRatings ? scores.displayDefensive : 0,
-    displayPsych: settings.publicShowSkillRatings ? scores.displayPsych : 0,
-    metrics: settings.publicShowSkillRatings ? scores.metrics : {},
+    rank: showRanks ? scores.rank : 0,
+    overall: keepOverall ? scores.overall : 0,
+    displayOffensive: showSkills ? scores.displayOffensive : 0,
+    displayDefensive: showSkills ? scores.displayDefensive : 0,
+    displayPsych: showSkills ? scores.displayPsych : 0,
+    metrics: showSkills ? scores.metrics : {},
   });
 
   return {
     ...state,
-    undraftedRankCounts: settings.publicShowRanks
-      ? state.undraftedRankCounts
-      : { ...EMPTY_RANK_COUNTS },
-    rankPoolCounts: settings.publicShowRanks ? state.rankPoolCounts : { ...EMPTY_RANK_COUNTS },
-    quotas: settings.publicShowRanks ? state.quotas : {},
+    undraftedRankCounts: showRanks ? state.undraftedRankCounts : { ...EMPTY_RANK_COUNTS },
+    rankPoolCounts: showRanks ? state.rankPoolCounts : { ...EMPTY_RANK_COUNTS },
+    quotas: showRanks ? state.quotas : {},
     undrafted: state.undrafted.map((player) => ({
       ...player,
       scores: redactScores(player.scores),
@@ -69,22 +75,23 @@ export function redactPublicDraftState(
       ...team,
       roster: team.roster.map((entry) => ({
         ...entry,
-        rank: settings.publicShowRanks ? entry.rank : 0,
-        overall: entry.overall,
-        displayOffensive: settings.publicShowSkillRatings ? entry.displayOffensive : 0,
-        displayDefensive: settings.publicShowSkillRatings ? entry.displayDefensive : 0,
-        displayPsych: settings.publicShowSkillRatings ? entry.displayPsych : 0,
+        rank: showRanks ? entry.rank : 0,
+        overall: keepOverall ? entry.overall : 0,
+        displayOffensive: showSkills ? entry.displayOffensive : 0,
+        displayDefensive: showSkills ? entry.displayDefensive : 0,
+        displayPsych: showSkills ? entry.displayPsych : 0,
       })),
-      rankCounts: settings.publicShowRanks ? team.rankCounts : { ...EMPTY_RANK_COUNTS },
-      quotaNeed: settings.publicShowRanks ? team.quotaNeed : emptyQuotaRecord(),
-      quotaCap: settings.publicShowRanks ? team.quotaCap : emptyQuotaRecord(),
+      rankCounts: showRanks ? team.rankCounts : { ...EMPTY_RANK_COUNTS },
+      quotaNeed: showRanks ? team.quotaNeed : emptyQuotaRecord(),
+      quotaCap: showRanks ? team.quotaCap : emptyQuotaRecord(),
       stats: {
         ...team.stats,
-        avgRank: settings.publicShowRanks ? team.stats.avgRank : null,
-        avgOffensive: settings.publicShowSkillRatings ? team.stats.avgOffensive : null,
-        avgDefensive: settings.publicShowSkillRatings ? team.stats.avgDefensive : null,
-        offensiveCount: settings.publicShowSkillRatings ? team.stats.offensiveCount : 0,
-        defensiveCount: settings.publicShowSkillRatings ? team.stats.defensiveCount : 0,
+        avgRank: showRanks ? team.stats.avgRank : null,
+        avgOverall: keepOverall ? team.stats.avgOverall : null,
+        avgOffensive: showSkills ? team.stats.avgOffensive : null,
+        avgDefensive: showSkills ? team.stats.avgDefensive : null,
+        offensiveCount: showSkills ? team.stats.offensiveCount : 0,
+        defensiveCount: showSkills ? team.stats.defensiveCount : 0,
       },
     })),
   } as DraftState;
@@ -92,9 +99,11 @@ export function redactPublicDraftState(
 
 export function redactPendingTrades(
   trades: TradeRequestSummary[],
-  settings: Pick<DraftDisplaySettings, "publicShowRanks">,
+  settings: Pick<DraftDisplaySettings, "publicShowRanks" | "playerRanksEnabled">,
 ): TradeRequestSummary[] {
-  if (settings.publicShowRanks) return trades;
+  const showRanks =
+    (settings.playerRanksEnabled ?? true) && settings.publicShowRanks;
+  if (showRanks) return trades;
 
   return trades.map((trade) => ({
     ...trade,
