@@ -84,7 +84,7 @@ npm run dev
 
 ## CSV Formats
 
-- Player import: `First Name,Last Name,Link` (`Link` optional). When set, the player name on the rating grid links out in a new tab.
+- Player import: `First Name,Last Name,Link,Active` (`Link` optional; `Active` is `Y` or `N`). Also accepts `Picture Link` and season `… Register` columns. When an Active/Register column is present, listed players are updated in place. Older files without that column still soft-replace the active roster. Empty link cells keep existing links.
 - Rater import: `Name,Email,is_admin,Passcode,Expires At` (`is_admin`, `Passcode`, and `Expires At` optional). Set `Passcode` (and optionally `Expires At`) on import to create or replace login codes. Without `Expires At`, the passcode expires one year from import. Re-importing without a passcode leaves existing passcodes unchanged. Passcodes set via import are shown in the superadmin completion table (stored for admin reference only).
 - Superadmin backend can configure a **Rate page button** (title + URL) shown at the top of `/rate`.
 - Rater export: `First Name,Last Name,Power,Accuracy,Intimidation,Catching,Evasion,Nerve,I don't know this player`

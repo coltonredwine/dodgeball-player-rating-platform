@@ -17,12 +17,14 @@ export function CsvImportPanel({ title, importAction, entity }: Props) {
   const base = `/api/admin/csv/${entity}`;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setMessage(null);
     setPending(true);
 
     const formData = new FormData(event.currentTarget);
@@ -32,23 +34,47 @@ export function CsvImportPanel({ title, importAction, entity }: Props) {
         method: "POST",
         body: formData,
         credentials: "same-origin",
-        redirect: "follow",
+        headers: { Accept: "application/json" },
       });
 
-      if (response.redirected) {
-        window.location.assign(response.url);
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        details?: string[];
+        ok?: boolean;
+        updated?: number;
+        created?: number;
+        processed?: number;
+        recognizedActiveColumn?: boolean;
+        recognizedLinkColumn?: boolean;
+        warnings?: string[];
+      } | null;
+
+      if (!response.ok) {
+        const detail = payload?.details?.length ? ` ${payload.details.join("; ")}` : "";
+        setError((payload?.error ?? "Upload failed") + detail);
         return;
       }
 
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string;
-          details?: string[];
-        } | null;
-        const detail = payload?.details?.length
-          ? ` ${payload.details.join("; ")}`
-          : "";
-        setError((payload?.error ?? "Upload failed") + detail);
+      if (entity === "players" && payload?.ok) {
+        const warnings = payload.warnings ?? [];
+        const parts = [
+          `Processed ${payload.processed ?? 0} row(s)`,
+          `updated ${payload.updated ?? 0}`,
+          `created ${payload.created ?? 0}`,
+        ];
+        if (payload.recognizedActiveColumn === false) {
+          parts.push("no Active/Register column detected (soft-replaced active roster)");
+        }
+        if (payload.recognizedLinkColumn === false) {
+          parts.push("no Link/Picture Link column detected");
+        }
+        setMessage(`${parts.join("; ")}.`);
+        if (warnings.length) {
+          setError(`Warnings: ${warnings.slice(0, 8).join("; ")}${warnings.length > 8 ? "…" : ""}`);
+        }
+        window.setTimeout(() => {
+          window.location.assign(leaguePath(leagueSlug || "league", "/backend"));
+        }, 1800);
         return;
       }
 
@@ -67,6 +93,13 @@ export function CsvImportPanel({ title, importAction, entity }: Props) {
       encType="multipart/form-data"
     >
       <h2 className="font-semibold">{title}</h2>
+      {entity === "players" ? (
+        <p className="text-xs text-zinc-600">
+          Preferred columns: <code>First Name,Last Name,Link,Active</code>. Also accepts{" "}
+          <code>Picture Link</code> and <code>Fall … Register</code> (Y/N). Empty link cells keep
+          existing links.
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2 text-sm">
         <Link
           className="rounded border border-zinc-300 px-3 py-1 hover:bg-zinc-50"
@@ -105,6 +138,7 @@ export function CsvImportPanel({ title, importAction, entity }: Props) {
         </button>
         <span className="min-w-0 break-all text-sm text-zinc-600">{fileName ?? "No file selected"}</span>
       </div>
+      {message ? <p className="text-sm text-green-700">{message}</p> : null}
       {error ? (
         <p className="text-sm text-red-700" role="alert">
           {error}

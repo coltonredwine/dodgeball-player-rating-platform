@@ -3,6 +3,7 @@ import {
   PLAYER_IMPORT_HEADERS,
   RATER_IMPORT_HEADERS,
   csvDownloadResponse,
+  formatActiveFlag,
   rowsToCsv,
 } from "@/lib/csv";
 import { prisma } from "@/lib/db";
@@ -36,10 +37,15 @@ export async function GET(
     }
 
     const players = await prisma.player.findMany({
-      where: { leagueId, active: true },
+      where: { leagueId },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     });
-    const rows = players.map((p) => [p.firstName, p.lastName, p.link ?? ""]);
+    const rows = players.map((p) => [
+      p.firstName,
+      p.lastName,
+      p.link ?? "",
+      formatActiveFlag(p.active),
+    ]);
     return csvDownloadResponse("players-current.csv", rowsToCsv(headers, rows));
   }
 

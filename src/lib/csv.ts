@@ -3,13 +3,17 @@ import Papa from "papaparse";
 export function parseCsv(text: string) {
   const parsed = Papa.parse<Record<string, string>>(text, {
     header: true,
-    skipEmptyLines: true,
+    skipEmptyLines: "greedy",
     transformHeader: (header) => header.trim().replace(/^\uFEFF/, ""),
   });
-  if (parsed.errors.length > 0) {
-    throw new Error(parsed.errors[0].message);
+  // Ignore delimiter/quote nags that still produce usable rows.
+  const fatal = parsed.errors.filter((error) => error.type === "Delimiter" || error.code === "MissingQuotes");
+  if (fatal.length > 0 && parsed.data.length === 0) {
+    throw new Error(fatal[0]!.message);
   }
-  return parsed.data;
+  return parsed.data.filter((row) =>
+    Object.values(row).some((value) => String(value ?? "").trim().length > 0),
+  );
 }
 
 export function csvEscape(value: string | number | null | undefined) {
@@ -26,19 +30,38 @@ export function rowsToCsv(headers: string[], rows: Array<Array<string | number |
   return lines.join("\n");
 }
 
-export const PLAYER_IMPORT_HEADERS = ["First Name", "Last Name", "Link"] as const;
+export const PLAYER_IMPORT_HEADERS = ["First Name", "Last Name", "Link", "Active"] as const;
+
+/** Collapse internal whitespace and trim for CSV ↔ DB name matching. */
+export function normalizePersonName(raw: string) {
+  return raw.replace(/\s+/g, " ").trim();
+}
 
 export function parseOptionalLink(raw: string): string | null {
-  const trimmed = raw.trim();
+  const trimmed = raw.trim().replace(/^<|>$/g, "");
   if (!trimmed) return null;
 
   try {
-    const url = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
+    const candidate = trimmed.includes("://") ? trimmed : `https://${trimmed}`;
+    const url = new URL(candidate);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
     return url.toString();
   } catch {
     return null;
   }
+}
+
+/** Parse Active CSV values: Y/N, Yes/No, true/false, 1/0, active/inactive. Empty → null. */
+export function parseActiveFlag(raw: string): boolean | null {
+  const normalized = raw.trim().toLowerCase().replace(/\.0$/, "");
+  if (!normalized) return null;
+  if (["y", "yes", "true", "1", "t", "active", "on"].includes(normalized)) return true;
+  if (["n", "no", "false", "0", "f", "inactive", "off"].includes(normalized)) return false;
+  return null;
+}
+
+export function formatActiveFlag(active: boolean) {
+  return active ? "Y" : "N";
 }
 export const RATER_IMPORT_HEADERS = [
   "Name",

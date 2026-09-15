@@ -220,7 +220,13 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
     const score = parseScoreInput(raw);
     setRows((current) => {
       const next = [...current];
-      next[rowIndex] = { ...next[rowIndex], [metric]: score };
+      const currentRow = next[rowIndex];
+      // Entering scores means the rater knows this player — clear "I don't know".
+      next[rowIndex] = {
+        ...currentRow,
+        [metric]: score,
+        unknownPlayer: score !== null ? false : currentRow.unknownPlayer,
+      };
       persistRows(next);
       return next;
     });
@@ -522,9 +528,20 @@ export function RatingGrid({ submissionId, locked, initialRows }: Props) {
                         pattern="[1-7]"
                         maxLength={1}
                         autoComplete="off"
-                        disabled={locked || row.unknownPlayer}
+                        disabled={locked || (row.unknownPlayer && !row.needsReview)}
                         value={row[metric] ?? ""}
                         onChange={(event) => updateMetric(rowIndex, metric, event.target.value)}
+                        onFocus={() => {
+                          if (!locked && row.needsReview && row.unknownPlayer) {
+                            setRows((current) => {
+                              const next = [...current];
+                              if (!next[rowIndex]?.unknownPlayer) return current;
+                              next[rowIndex] = { ...next[rowIndex], unknownPlayer: false };
+                              persistRows(next);
+                              return next;
+                            });
+                          }
+                        }}
                         onKeyDown={(event) => handleMetricKeyDown(event, rowIndex, metricIndex)}
                         className={`box-border w-full max-w-[1.45rem] rounded border px-0 py-1.5 text-center text-sm disabled:bg-zinc-100 sm:max-w-none sm:w-12 sm:px-1 sm:py-2 sm:text-base ${
                           highlightEmpty

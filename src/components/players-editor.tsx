@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ScrollableListCard } from "@/components/scrollable-list-card";
 
@@ -28,14 +28,39 @@ export function PlayersEditor({ players, permissions }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [bulkPending, setBulkPending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [newPlayer, setNewPlayer] = useState({
     firstName: "",
     lastName: "",
     link: "",
     active: true,
   });
+
+  const allSelected = players.length > 0 && selectedIds.size === players.length;
+  const selectedCount = selectedIds.size;
+  const selectedPlayers = useMemo(
+    () => players.filter((player) => selectedIds.has(player.id)),
+    [players, selectedIds],
+  );
+
+  function toggleSelected(playerId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(playerId)) next.delete(playerId);
+      else next.add(playerId);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((current) => {
+      if (players.length > 0 && current.size === players.length) return new Set();
+      return new Set(players.map((player) => player.id));
+    });
+  }
 
   async function savePlayer(playerId: string, data: Omit<Player, "id">) {
     setPendingId(playerId);
@@ -83,7 +108,46 @@ export function PlayersEditor({ players, permissions }: Props) {
       return;
     }
 
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      next.delete(playerId);
+      return next;
+    });
     setMessage("Player deleted.");
+    router.refresh();
+  }
+
+  async function bulkSetActive(active: boolean) {
+    if (selectedCount === 0) return;
+    setBulkPending(true);
+    setMessage(null);
+    setError(null);
+
+    const response = await fetch("/api/admin/players/bulk-active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerIds: [...selectedIds],
+        active,
+      }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+      updatedCount?: number;
+    } | null;
+
+    setBulkPending(false);
+
+    if (!response.ok) {
+      setError(payload?.error ?? "Failed to update selected players");
+      return;
+    }
+
+    setMessage(
+      `Marked ${payload?.updatedCount ?? selectedCount} player(s) ${active ? "active" : "inactive"}.`,
+    );
+    setSelectedIds(new Set());
     router.refresh();
   }
 
@@ -112,43 +176,82 @@ export function PlayersEditor({ players, permissions }: Props) {
   return (
     <div className="min-w-0 space-y-3">
       <p className="text-xs text-zinc-600">
-        Click Edit on a player to update their details. Existing scores stay attached.
+        Click Edit on a player to update their details. Select rows to batch mark active or inactive.
+        Existing scores stay attached.
       </p>
 
       {message ? <p className="text-sm text-green-700">{message}</p> : null}
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
 
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-50"
+          disabled={bulkPending || selectedCount === 0}
+          onClick={() => void bulkSetActive(true)}
+        >
+          Mark selected active ({selectedCount})
+        </button>
+        <button
+          type="button"
+          className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 disabled:opacity-50"
+          disabled={bulkPending || selectedCount === 0}
+          onClick={() => void bulkSetActive(false)}
+        >
+          Mark selected inactive ({selectedCount})
+        </button>
+        {selectedCount > 0 ? (
+          <span className="text-xs text-zinc-500">
+            {selectedPlayers
+              .slice(0, 3)
+              .map((player) => `${player.firstName} ${player.lastName}`)
+              .join(", ")}
+            {selectedPlayers.length > 3 ? "…" : ""}
+          </span>
+        ) : null}
+      </div>
+
       <ScrollableListCard title="Players">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-zinc-100 text-zinc-900">
-          <tr>
-            <th className="px-3 py-2 text-left">First</th>
-            <th className="px-3 py-2 text-left">Last</th>
-            <th className="px-3 py-2 text-left">Link</th>
-            <th className="px-3 py-2 text-left">Active</th>
-            <th className="px-3 py-2 text-left" />
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((player) => (
-            <PlayerRow
-              key={player.id}
-              player={player}
-              permissions={permissions}
-              isEditing={editingId === player.id}
-              pending={pendingId === player.id}
-              onEdit={() => {
-                setError(null);
-                setEditingId(player.id);
-              }}
-              onCancel={() => setEditingId(null)}
-              onSave={savePlayer}
-              onDelete={
-                permissions.canDelete ? () => setDeleteTargetId(player.id) : undefined
-              }
-            />
-          ))}
-        </tbody>
+            <tr>
+              <th className="px-3 py-2 text-left">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  aria-label="Select all players"
+                />
+              </th>
+              <th className="px-3 py-2 text-left">First</th>
+              <th className="px-3 py-2 text-left">Last</th>
+              <th className="px-3 py-2 text-left">Link</th>
+              <th className="px-3 py-2 text-left">Active</th>
+              <th className="px-3 py-2 text-left" />
+            </tr>
+          </thead>
+          <tbody>
+            {players.map((player) => (
+              <PlayerRow
+                key={player.id}
+                player={player}
+                permissions={permissions}
+                selected={selectedIds.has(player.id)}
+                onToggleSelected={() => toggleSelected(player.id)}
+                isEditing={editingId === player.id}
+                pending={pendingId === player.id}
+                onEdit={() => {
+                  setError(null);
+                  setEditingId(player.id);
+                }}
+                onCancel={() => setEditingId(null)}
+                onSave={savePlayer}
+                onDelete={
+                  permissions.canDelete ? () => setDeleteTargetId(player.id) : undefined
+                }
+              />
+            ))}
+          </tbody>
         </table>
       </ScrollableListCard>
 
@@ -214,6 +317,8 @@ export function PlayersEditor({ players, permissions }: Props) {
 function PlayerRow({
   player,
   permissions,
+  selected,
+  onToggleSelected,
   isEditing,
   pending,
   onEdit,
@@ -223,6 +328,8 @@ function PlayerRow({
 }: {
   player: Player;
   permissions: Permissions;
+  selected: boolean;
+  onToggleSelected: () => void;
   isEditing: boolean;
   pending: boolean;
   onEdit: () => void;
@@ -256,6 +363,14 @@ function PlayerRow({
   if (!isEditing) {
     return (
       <tr className={rowClass}>
+        <td className="px-3 py-2">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelected}
+            aria-label={`Select ${player.firstName} ${player.lastName}`}
+          />
+        </td>
         <td className="px-3 py-2">{player.firstName}</td>
         <td className="px-3 py-2">{player.lastName}</td>
         <td className="px-3 py-2 text-zinc-600">
@@ -288,6 +403,14 @@ function PlayerRow({
 
   return (
     <tr className={rowClass}>
+      <td className="px-3 py-2">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggleSelected}
+          aria-label={`Select ${player.firstName} ${player.lastName}`}
+        />
+      </td>
       <td className="px-3 py-2">
         {permissions.canEditNames ? (
           <input
