@@ -3,6 +3,7 @@ import { METRIC_FIELDS } from "@/lib/constants";
 export type SavedRating = {
   playerId?: string;
   unknownPlayer: boolean;
+  needsReview?: boolean;
   power: number | null;
   accuracy: number | null;
   intimidation: number | null;
@@ -11,11 +12,18 @@ export type SavedRating = {
   nerve: number | null;
 };
 
-export function isCompleteSavedRow(rating: SavedRating) {
+/** True when all six scores (or unknown) are filled, ignoring review state. */
+export function hasCompleteScores(rating: SavedRating) {
   if (rating.unknownPlayer) return true;
   return METRIC_FIELDS.every(
     (field) => typeof rating[field] === "number" && rating[field]! >= 1 && rating[field]! <= 7,
   );
+}
+
+/** Complete for progress/completion view — scores done and not awaiting review. */
+export function isCompleteSavedRow(rating: SavedRating) {
+  if (rating.needsReview) return false;
+  return hasCompleteScores(rating);
 }
 
 export function hasAnyRatingData(rating: SavedRating) {

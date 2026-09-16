@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { isCompleteSavedRow } from "@/lib/completion";
+import { hasCompleteScores } from "@/lib/completion";
 import { getSeasonLabel } from "@/lib/settings";
 
 /** Mark every completed player rating in the league's current season as needing review. */
@@ -13,6 +13,7 @@ export async function markAllCompletedRatingsForReview(leagueId: string) {
         select: {
           id: true,
           unknownPlayer: true,
+          needsReview: true,
           power: true,
           accuracy: true,
           intimidation: true,
@@ -25,7 +26,7 @@ export async function markAllCompletedRatingsForReview(leagueId: string) {
   });
 
   const ids = submissions.flatMap((submission) =>
-    submission.ratings.filter(isCompleteSavedRow).map((rating) => rating.id),
+    submission.ratings.filter(hasCompleteScores).map((rating) => rating.id),
   );
 
   if (ids.length === 0) {
