@@ -31,13 +31,21 @@ export function isTeamColorAllowed(color: string): boolean {
 export type DraftDisplaySettings = {
   showRanksOnCaptainView: boolean;
   hideRanksOnCompleteTeams: boolean;
-  /** When false, hide rank glyphs and show Rally Index (RAL) instead. */
+  /** When false, hide rank glyphs. Independent of Rally Index toggles. */
   playerRanksEnabled: boolean;
+  /** Show Rally Index (RAL) on undrafted player cards / pool list. */
+  showRallyOnPool: boolean;
+  /** Show Rally Index (RAL) on team roster player cards. */
+  showRallyOnRoster: boolean;
   /**
    * Display-only transform for Rally Index / CALC averages, e.g. `*2` or `+1`.
    * Does not change stored scores.
    */
   rallyModifier: string;
+  /** Captain/TV: group undrafted pool into rank sections. */
+  groupPoolByRank: boolean;
+  /** Captain/TV: order of rank groups. desc = 5→1, asc = 1→5. */
+  poolRankSortDirection: SortDirection;
   primarySort: PlayerSortField;
   secondarySort: PlayerSortField;
   publicBoardEnabled: boolean;
@@ -52,7 +60,11 @@ const DEFAULT_DISPLAY_SETTINGS: DraftDisplaySettings = {
   showRanksOnCaptainView: true,
   hideRanksOnCompleteTeams: false,
   playerRanksEnabled: true,
+  showRallyOnPool: false,
+  showRallyOnRoster: false,
   rallyModifier: "",
+  groupPoolByRank: true,
+  poolRankSortDirection: "desc",
   publicBoardEnabled: false,
   publicShowRanks: true,
   publicShowSkillRatings: true,
@@ -72,7 +84,11 @@ export function parseDisplaySettings(raw: string | null | undefined): DraftDispl
       showRanksOnCaptainView: parsed.showRanksOnCaptainView ?? true,
       hideRanksOnCompleteTeams: parsed.hideRanksOnCompleteTeams ?? false,
       playerRanksEnabled: parsed.playerRanksEnabled ?? true,
+      showRallyOnPool: parsed.showRallyOnPool ?? false,
+      showRallyOnRoster: parsed.showRallyOnRoster ?? false,
       rallyModifier: typeof parsed.rallyModifier === "string" ? parsed.rallyModifier.trim() : "",
+      groupPoolByRank: parsed.groupPoolByRank ?? true,
+      poolRankSortDirection: parseSortDirection(parsed.poolRankSortDirection),
       primarySort: parsed.primarySort ?? DEFAULT_SORT_SETTINGS.primarySort,
       secondarySort: parsed.secondarySort ?? DEFAULT_SORT_SETTINGS.secondarySort,
       publicBoardEnabled: parsed.publicBoardEnabled ?? false,

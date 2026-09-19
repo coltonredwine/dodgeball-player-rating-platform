@@ -56,3 +56,28 @@ export function formatModifiedOverall(
 ): string {
   return applyRallyModifier(overall, modifier).toFixed(digits);
 }
+
+/** Sum of display-modified overalls for a roster (Total RAL). */
+export function sumRallyIndex(
+  overalls: Array<number | null | undefined>,
+  modifier: RallyModifierOp | null = null,
+): number | null {
+  let total = 0;
+  let count = 0;
+  for (const overall of overalls) {
+    if (overall == null || !Number.isFinite(overall)) continue;
+    total += applyRallyModifier(overall, modifier);
+    count += 1;
+  }
+  return count === 0 ? null : total;
+}
+
+export function formatTotalRallyIndex(
+  overalls: Array<number | null | undefined>,
+  modifier: RallyModifierOp | null = null,
+  digits = 2,
+): string {
+  const total = sumRallyIndex(overalls, modifier);
+  if (total == null) return "—";
+  return total.toFixed(digits);
+}

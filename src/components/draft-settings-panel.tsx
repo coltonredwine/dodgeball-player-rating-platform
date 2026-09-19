@@ -54,7 +54,11 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
   const [showRanksOnCaptainView, setShowRanksOnCaptainView] = useState(true);
   const [hideRanksOnCompleteTeams, setHideRanksOnCompleteTeams] = useState(false);
   const [playerRanksEnabled, setPlayerRanksEnabled] = useState(true);
+  const [showRallyOnPool, setShowRallyOnPool] = useState(false);
+  const [showRallyOnRoster, setShowRallyOnRoster] = useState(false);
   const [rallyModifier, setRallyModifier] = useState("");
+  const [groupPoolByRank, setGroupPoolByRank] = useState(true);
+  const [poolRankSortDirection, setPoolRankSortDirection] = useState<SortDirection>("desc");
   const [publicBoardEnabled, setPublicBoardEnabled] = useState(false);
   const [publicShowRanks, setPublicShowRanks] = useState(true);
   const [publicShowSkillRatings, setPublicShowSkillRatings] = useState(true);
@@ -86,7 +90,13 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
       setShowRanksOnCaptainView(data.draft.displaySettings.showRanksOnCaptainView);
       setHideRanksOnCompleteTeams(data.draft.displaySettings.hideRanksOnCompleteTeams);
       setPlayerRanksEnabled(data.draft.displaySettings.playerRanksEnabled ?? true);
+      setShowRallyOnPool(data.draft.displaySettings.showRallyOnPool ?? false);
+      setShowRallyOnRoster(data.draft.displaySettings.showRallyOnRoster ?? false);
       setRallyModifier(data.draft.displaySettings.rallyModifier ?? "");
+      setGroupPoolByRank(data.draft.displaySettings.groupPoolByRank ?? true);
+      setPoolRankSortDirection(
+        data.draft.displaySettings.poolRankSortDirection === "asc" ? "asc" : "desc",
+      );
       setPublicBoardEnabled(data.draft.displaySettings.publicBoardEnabled ?? false);
       setPublicShowRanks(data.draft.displaySettings.publicShowRanks ?? true);
       setPublicShowSkillRatings(data.draft.displaySettings.publicShowSkillRatings ?? true);
@@ -141,7 +151,11 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
           showRanksOnCaptainView,
           hideRanksOnCompleteTeams,
           playerRanksEnabled,
+          showRallyOnPool,
+          showRallyOnRoster,
           rallyModifier,
+          groupPoolByRank,
+          poolRankSortDirection,
           primarySort,
           secondarySort,
           publicBoardEnabled,
@@ -281,9 +295,24 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
             Show player ranks
           </label>
           <p className="mt-1 text-xs text-zinc-500">
-            When off, player cards show Rally Index (RAL) instead of rank glyphs. Quotas stay
-            internal.
+            Independent of Rally Index. Quotas stay enforced even when ranks are hidden.
           </p>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={showRallyOnPool}
+              onChange={(e) => setShowRallyOnPool(e.target.checked)}
+            />
+            Show Rally Index on players list
+          </label>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={showRallyOnRoster}
+              onChange={(e) => setShowRallyOnRoster(e.target.checked)}
+            />
+            Show Rally Index on team rosters
+          </label>
           <label
             className={`mt-2 flex items-center gap-2 text-sm ${playerRanksEnabled ? "" : "opacity-50"}`}
           >
@@ -305,6 +334,27 @@ export function DraftSettingsPanel({ draftId, onSaved }: Props) {
               onChange={(e) => setHideRanksOnCompleteTeams(e.target.checked)}
             />
             Hide player rank on full team cards
+          </label>
+          <label className="mt-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={groupPoolByRank}
+              onChange={(e) => setGroupPoolByRank(e.target.checked)}
+            />
+            Group captain/TV pool by rank
+          </label>
+          <label className="mt-2 flex flex-col gap-1 text-sm">
+            Rank group order
+            <select
+              className="rounded border px-2 py-1"
+              value={poolRankSortDirection}
+              onChange={(e) =>
+                setPoolRankSortDirection(e.target.value === "asc" ? "asc" : "desc")
+              }
+            >
+              <option value="desc">Descending (rank 5 first)</option>
+              <option value="asc">Ascending (rank 1 first)</option>
+            </select>
           </label>
           <label className="mt-4 flex flex-col gap-1 text-sm">
             Arbitrary Rally Modifier

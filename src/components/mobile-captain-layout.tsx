@@ -285,25 +285,28 @@ function MobileRosterPlayerRow({
       ].join(" ")}
     >
       <PlayerAvatar playerId={playerId} link={link} name={fullName} size={MOBILE_ROSTER_AVATAR_SIZE} />
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <span
-          className={[
-            "min-w-0 truncate",
-            ghost ? "text-[var(--draft-text-medium)]" : "",
-          ].join(" ")}
-        >
-          {fullName}
-          {isStarter ? " *" : ""}
-        </span>
-        {showRanks && rank != null ? (
-          <RankGlyph
-            rank={rank}
-            size={20}
-            surface={theme.rankGlyphSurface}
-            className="shrink-0"
-          />
-        ) : rallyLabel ? (
-          <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span
+            className={[
+              "min-w-0 truncate",
+              ghost ? "text-[var(--draft-text-medium)]" : "",
+            ].join(" ")}
+          >
+            {fullName}
+            {isStarter ? " *" : ""}
+          </span>
+          {showRanks && rank != null ? (
+            <RankGlyph
+              rank={rank}
+              size={20}
+              surface={theme.rankGlyphSurface}
+              className="shrink-0"
+            />
+          ) : null}
+        </div>
+        {rallyLabel ? (
+          <span className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
             {rallyLabel}
           </span>
         ) : null}
@@ -319,7 +322,7 @@ function MobileTeamPanel({
   minQuotasEnabled,
   maxQuotasEnabled,
   showRanks,
-  showRallyIndex = false,
+  showRallyOnRoster = false,
   rallyModifier = null,
   isOnClock,
   ghostPlayers = [],
@@ -333,7 +336,7 @@ function MobileTeamPanel({
   minQuotasEnabled: boolean;
   maxQuotasEnabled: boolean;
   showRanks: boolean;
-  showRallyIndex?: boolean;
+  showRallyOnRoster?: boolean;
   rallyModifier?: RallyModifierOp | null;
   isOnClock: boolean;
   ghostPlayers?: UndraftedPlayer[];
@@ -558,7 +561,7 @@ function MobileTeamPanel({
                     isStarter={p.isStarter}
                     showRanks={showRanks}
                     rallyLabel={
-                      showRallyIndex && p.overall != null
+                      showRallyOnRoster && p.overall != null
                         ? formatRallyIndex(p.overall, rallyModifier)
                         : null
                     }
@@ -585,7 +588,7 @@ function MobileTeamPanel({
                     leaning={player.scores.leaning}
                     showRanks={showRanks}
                     rallyLabel={
-                      showRallyIndex && player.scores.overall != null
+                      showRallyOnRoster && player.scores.overall != null
                         ? formatRallyIndex(player.scores.overall, rallyModifier)
                         : null
                     }
@@ -610,7 +613,7 @@ function MobileTeamPanel({
 export function MobileCaptainLayout({
   state,
   showRanks,
-  showRallyIndex = false,
+  showRallyOnRoster = false,
   rallyModifierRaw = "",
   onOpenTeamRef,
   trade,
@@ -618,7 +621,7 @@ export function MobileCaptainLayout({
 }: {
   state: MobileCaptainState;
   showRanks: boolean;
-  showRallyIndex?: boolean;
+  showRallyOnRoster?: boolean;
   rallyModifierRaw?: string;
   onOpenTeamRef?: MutableRefObject<(() => void) | null>;
   trade?: CaptainTradeControls;
@@ -708,7 +711,7 @@ export function MobileCaptainLayout({
             minQuotasEnabled={state.draft.minQuotasEnabled}
             maxQuotasEnabled={state.draft.maxQuotasEnabled}
             showRanks={showRanks}
-            showRallyIndex={showRallyIndex}
+            showRallyOnRoster={showRallyOnRoster}
             rallyModifier={rallyModifier}
             isOnClock={myTeam.id === state.onClockTeamId}
             ghostPlayers={captainGhostPlayers}
@@ -726,7 +729,7 @@ export function MobileCaptainLayout({
             minQuotasEnabled={state.draft.minQuotasEnabled}
             maxQuotasEnabled={state.draft.maxQuotasEnabled}
             showRanks={showRanks}
-            showRallyIndex={showRallyIndex}
+            showRallyOnRoster={showRallyOnRoster}
             rallyModifier={rallyModifier}
             isOnClock={team.id === state.onClockTeamId}
             captainTeamId={myTeamId}

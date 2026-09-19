@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { LeaningIcon } from "@/components/player-leaning-icon";
 import { PlayerAvatar, TeamAvatar } from "@/components/player-avatar";
 import { PickClockRing } from "@/components/pick-clock-ring";
@@ -29,6 +29,7 @@ import { groupPoolPlayersIntoSections } from "@/lib/draft/pool-sections";
 import {
   DEFAULT_CAPTAIN_POOL_SORT,
   sortPoolPlayersByField,
+  sortPoolPlayersByRankThenField,
   sortPoolSectionsByField,
   type CaptainPoolSortField,
 } from "@/lib/draft/pool-sort";
@@ -147,7 +148,11 @@ type DraftState = {
       publicRosterSortDirection?: SortDirection;
       rosterAverageMetric?: RosterAverageMetric;
       playerRanksEnabled?: boolean;
+      showRallyOnPool?: boolean;
+      showRallyOnRoster?: boolean;
       rallyModifier?: string;
+      groupPoolByRank?: boolean;
+      poolRankSortDirection?: SortDirection;
     };
     pickOrderMode?: "snake" | "lowest_avg";
   };
@@ -269,42 +274,45 @@ function PlayerPoolCard({
           {fullName}
         </p>
         {scores ? (
-          <div className="mt-0.5 flex min-w-0 items-start gap-x-2">
-            {showRank ? (
-              <RankGlyph
-                rank={scores.rank}
-                size={TV_PLAYER_RANK_GLYPH_SIZE}
-                surface="dark"
-                className="draft-tv-rank-glyph shrink-0"
-              />
-            ) : rallyLabel ? (
-              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
+          <div className="mt-0.5 flex min-w-0 flex-col gap-0.5">
+            <div className="flex min-w-0 items-start gap-x-2">
+              {showRank ? (
+                <RankGlyph
+                  rank={scores.rank}
+                  size={TV_PLAYER_RANK_GLYPH_SIZE}
+                  surface="dark"
+                  className="draft-tv-rank-glyph shrink-0"
+                />
+              ) : null}
+              {showSkillRatings ? (
+                <div className="flex min-w-0 flex-1 items-center justify-start gap-x-2">
+                  <PlayerStatScore
+                    glyph={<OffenseStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
+                    value={scores.displayOffensive}
+                  />
+                  <PlayerStatScore
+                    glyph={<DefenseStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
+                    value={scores.displayDefensive}
+                  />
+                  <PlayerStatScore
+                    glyph={<PsychStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
+                    value={scores.displayPsych}
+                  />
+                </div>
+              ) : null}
+              {!showPickActions ? (
+                <LeaningIcon
+                  leaning={scores.leaning}
+                  size={TV_LEANING_ICON_SIZE}
+                  monochrome
+                  className="shrink-0"
+                />
+              ) : null}
+            </div>
+            {rallyLabel ? (
+              <span className="whitespace-nowrap text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
                 {rallyLabel}
               </span>
-            ) : null}
-            {showSkillRatings ? (
-              <div className="flex min-w-0 flex-1 items-center justify-start gap-x-2">
-                <PlayerStatScore
-                  glyph={<OffenseStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
-                  value={scores.displayOffensive}
-                />
-                <PlayerStatScore
-                  glyph={<DefenseStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
-                  value={scores.displayDefensive}
-                />
-                <PlayerStatScore
-                  glyph={<PsychStatGlyph size={TV_PLAYER_STAT_GLYPH_SIZE} />}
-                  value={scores.displayPsych}
-                />
-              </div>
-            ) : null}
-            {!showPickActions ? (
-              <LeaningIcon
-                leaning={scores.leaning}
-                size={TV_LEANING_ICON_SIZE}
-                monochrome
-                className="shrink-0"
-              />
             ) : null}
           </div>
         ) : (
@@ -373,12 +381,11 @@ function GhostRosterSlot({
               className="draft-tv-rank-glyph"
             />
           </div>
-        ) : scores && rallyLabel ? (
-          <div className="flex flex-1 items-center">
-            <span className="text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
-              {rallyLabel}
-            </span>
-          </div>
+        ) : null}
+        {scores && rallyLabel ? (
+          <span className="mt-0.5 whitespace-nowrap text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
+            {rallyLabel}
+          </span>
         ) : null}
       </div>
       {scores ? (
@@ -455,12 +462,11 @@ function RosterSlot({
               className="draft-tv-rank-glyph"
             />
           </div>
-        ) : rallyLabel ? (
-          <div className="flex flex-1 items-center">
-            <span className="text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
-              {rallyLabel}
-            </span>
-          </div>
+        ) : null}
+        {rallyLabel ? (
+          <span className="mt-0.5 whitespace-nowrap text-[11px] font-semibold tabular-nums text-[var(--draft-text-medium)]">
+            {rallyLabel}
+          </span>
         ) : null}
       </div>
       <LeaningIcon
@@ -492,7 +498,7 @@ function TeamCard({
   rosterSortDirection = "desc",
   rosterAverageMetric = "rank",
   rallyModifier = null,
-  showRallyIndex = false,
+  showRallyOnRoster = false,
 }: {
   team: TeamState;
   isOnClock: boolean;
@@ -511,7 +517,7 @@ function TeamCard({
   rosterSortDirection?: SortDirection;
   rosterAverageMetric?: RosterAverageMetric;
   rallyModifier?: RallyModifierOp | null;
-  showRallyIndex?: boolean;
+  showRallyOnRoster?: boolean;
 }) {
   const emptySlots = Math.max(0, team.targetRosterSize - team.roster.length);
   const displayRoster = useMemo(
@@ -525,7 +531,9 @@ function TeamCard({
   const hasOutgoingPending = outgoingTrades.length > 0;
   const quotasEnabled = areQuotasEnabled({ minQuotasEnabled, maxQuotasEnabled });
   const showRosterAverage =
-    rosterAverageMetric === "calc" ? showSkillRatings || showRallyIndex : !hideRanks;
+    rosterAverageMetric === "calc"
+      ? showSkillRatings || showRallyOnRoster
+      : !hideRanks;
   const rosterAverageText = formatRosterAverageValue(
     team.stats,
     rosterAverageMetric,
@@ -727,9 +735,7 @@ function TeamCard({
             player={player}
             showRank={!hideRanks}
             rallyLabel={
-              showRallyIndex && hideRanks
-                ? formatRallyIndex(player.overall, rallyModifier)
-                : null
+              showRallyOnRoster ? formatRallyIndex(player.overall, rallyModifier) : null
             }
             linkPlayerProfiles={linkPlayerProfiles}
             tradeActions={renderRosterTradeActions(player)}
@@ -748,7 +754,7 @@ function TeamCard({
                 player={player}
                 showRank={!hideRanks}
                 rallyLabel={
-                  showRallyIndex && hideRanks && player.scores
+                  showRallyOnRoster && player.scores
                     ? formatRallyIndex(player.scores.overall, rallyModifier)
                     : null
                 }
@@ -804,13 +810,28 @@ export function DraftBoardTvView({
   const [poolSort, setPoolSort] = useState<CaptainPoolSortField>(DEFAULT_CAPTAIN_POOL_SORT);
   const [poolSortDirection, setPoolSortDirection] = useState<SortDirection>("desc");
   const isCaptainView = captain != null;
-  const playerRanksEnabled = state.draft.displaySettings.playerRanksEnabled !== false;
+  const displaySettings = state.draft.displaySettings;
+  const playerRanksEnabled = displaySettings.playerRanksEnabled !== false;
   const showRanks = visibility.showRanks && playerRanksEnabled;
-  const showRallyIndex = !playerRanksEnabled;
+  const showRallyOnPool = displaySettings.showRallyOnPool === true;
+  const showRallyOnRoster = displaySettings.showRallyOnRoster === true;
+  const groupPoolByRank = displaySettings.groupPoolByRank !== false;
+  const [localGroupByRank, setLocalGroupByRank] = useState(groupPoolByRank);
+  const [poolRankSortDirection, setPoolRankSortDirection] = useState<SortDirection>(
+    displaySettings.poolRankSortDirection === "asc" ? "asc" : "desc",
+  );
+  useEffect(() => {
+    setLocalGroupByRank(groupPoolByRank);
+  }, [groupPoolByRank]);
+  useEffect(() => {
+    setPoolRankSortDirection(
+      displaySettings.poolRankSortDirection === "asc" ? "asc" : "desc",
+    );
+  }, [displaySettings.poolRankSortDirection]);
   const showSkillRatings = visibility.showSkillRatings;
   const rallyModifier = useMemo(
-    () => parseRallyModifier(state.draft.displaySettings.rallyModifier),
-    [state.draft.displaySettings.rallyModifier],
+    () => parseRallyModifier(displaySettings.rallyModifier),
+    [displaySettings.rallyModifier],
   );
   const onClockTeam = state.teams.find((team) => team.id === state.onClockTeamId);
   const showQuotas = areQuotasEnabled(state.draft) && showRanks;
@@ -827,24 +848,48 @@ export function DraftBoardTvView({
   }, [captain, isCaptainView, search, state.undrafted]);
 
   const poolSections = useMemo(() => {
-    if (!showRanks) return null;
+    if (!localGroupByRank) return null;
 
     const sections = groupPoolPlayersIntoSections(poolPlayers, {
       bookmarkIds: isCaptainView && captain ? captain.flaggedPlayerIds : undefined,
     });
 
-    return isCaptainView
-      ? sortPoolSectionsByField(sections, poolSort, poolSortDirection)
-      : sections;
-  }, [captain, isCaptainView, poolPlayers, poolSort, poolSortDirection, showRanks]);
+    return sortPoolSectionsByField(
+      sections,
+      poolSort,
+      poolSortDirection,
+      poolRankSortDirection,
+    );
+  }, [
+    captain,
+    isCaptainView,
+    localGroupByRank,
+    poolPlayers,
+    poolRankSortDirection,
+    poolSort,
+    poolSortDirection,
+  ]);
 
-  const sortedFlatPoolPlayers = useMemo(
-    () =>
-      isCaptainView
+  const sortedFlatPoolPlayers = useMemo(() => {
+    if (localGroupByRank) {
+      return isCaptainView
         ? sortPoolPlayersByField(poolPlayers, poolSort, poolSortDirection)
-        : poolPlayers,
-    [isCaptainView, poolPlayers, poolSort, poolSortDirection],
-  );
+        : poolPlayers;
+    }
+    return sortPoolPlayersByRankThenField(
+      poolPlayers,
+      poolSort,
+      poolRankSortDirection,
+      poolSortDirection,
+    );
+  }, [
+    isCaptainView,
+    localGroupByRank,
+    poolPlayers,
+    poolRankSortDirection,
+    poolSort,
+    poolSortDirection,
+  ]);
 
   const captainGhostPlayers = useMemo(() => {
     if (!captain?.captainTeamId) return [];
@@ -1053,7 +1098,7 @@ export function DraftBoardTvView({
                   rosterSortDirection={rosterSortDirection}
                   rosterAverageMetric={rosterAverageMetric}
                   rallyModifier={rallyModifier}
-                  showRallyIndex={showRallyIndex}
+                  showRallyOnRoster={showRallyOnRoster}
                   ghostPlayers={
                     captain != null && team.id === captain.captainTeamId
                       ? captainGhostPlayers
@@ -1117,6 +1162,10 @@ export function DraftBoardTvView({
                 onChange={setPoolSort}
                 direction={poolSortDirection}
                 onDirectionChange={setPoolSortDirection}
+                rankDirection={poolRankSortDirection}
+                onRankDirectionChange={setPoolRankSortDirection}
+                groupByRank={localGroupByRank}
+                onGroupByRankChange={setLocalGroupByRank}
                 className="mt-2.5"
               />
             ) : null}
@@ -1126,7 +1175,7 @@ export function DraftBoardTvView({
               <p className="p-4 text-sm text-[var(--draft-text-disabled)]">
                 {isCaptainView && search ? "No matching players." : "No players available."}
               </p>
-            ) : showRanks && poolSections ? (
+            ) : localGroupByRank && poolSections ? (
               <PlayerPoolRankSections
                 sections={poolSections}
                 renderPlayer={(player, section) => (
@@ -1141,7 +1190,7 @@ export function DraftBoardTvView({
                     showSkillRatings={showSkillRatings}
                     linkPlayerProfiles={linkPlayerProfiles}
                     rallyLabel={
-                      showRallyIndex && player.scores
+                      showRallyOnPool && player.scores
                         ? formatRallyIndex(player.scores.overall, rallyModifier)
                         : null
                     }
@@ -1160,7 +1209,7 @@ export function DraftBoardTvView({
                   showSkillRatings={showSkillRatings}
                   linkPlayerProfiles={linkPlayerProfiles}
                   rallyLabel={
-                    showRallyIndex && player.scores
+                    showRallyOnPool && player.scores
                       ? formatRallyIndex(player.scores.overall, rallyModifier)
                       : null
                   }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { DraftBoardView, type DraftBoardStatus } from "@/components/draft-board-view";
+import { DraftAdminDisplayPanel } from "@/components/draft-admin-display-panel";
 import { leaguePath } from "@/lib/league-path";
 
 type Props = {
@@ -173,6 +174,14 @@ export function DraftAdminPanel({
                 Draft settings
               </button>
             ) : null}
+            <DraftAdminDisplayPanel
+              draftId={draftId}
+              disabled={busy}
+              onSaved={() => {
+                void loadMeta();
+                bumpBoardRefresh();
+              }}
+            />
               </>
             ) : null}
             <Link

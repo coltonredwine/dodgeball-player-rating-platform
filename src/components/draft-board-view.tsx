@@ -17,7 +17,7 @@ import {
   formatRosterAverageValue,
   rosterAverageLabel,
 } from "@/lib/draft/roster-average";
-import { formatRallyIndex, parseRallyModifier } from "@/lib/draft/rally-modifier";
+import { formatRallyIndex, formatTotalRallyIndex, parseRallyModifier } from "@/lib/draft/rally-modifier";
 import { validateRosterMove } from "@/lib/draft/trade-validation";
 import { RANKS_DESC } from "@/lib/rankings/rank-labels";
 import { formatCalcRankDisplay, type RankThresholds } from "@/lib/rankings/thresholds";
@@ -100,7 +100,11 @@ type DraftStatePayload = {
       publicRosterSortDirection?: "asc" | "desc";
       rosterAverageMetric?: "rank" | "calc";
       playerRanksEnabled?: boolean;
+      showRallyOnPool?: boolean;
+      showRallyOnRoster?: boolean;
       rallyModifier?: string;
+      groupPoolByRank?: boolean;
+      poolRankSortDirection?: "asc" | "desc";
     };
   };
   currentPickNumber: number;
@@ -153,6 +157,7 @@ function AdminPlayerProfile({
   currentTeamName,
   moveControls,
   showPlayerRanks = true,
+  showRallyIndex = false,
   rallyModifierRaw = "",
 }: {
   player: UndraftedPlayer;
@@ -169,6 +174,7 @@ function AdminPlayerProfile({
   viewOnly?: boolean;
   currentTeamName?: string | null;
   showPlayerRanks?: boolean;
+  showRallyIndex?: boolean;
   rallyModifierRaw?: string;
   moveControls?: {
     fromTeamId: string;
@@ -214,16 +220,20 @@ function AdminPlayerProfile({
       </div>
 
       <div className="rounded border border-zinc-100 bg-zinc-50 p-3 text-sm">
-        <p className="font-medium">{showPlayerRanks ? "Ranking" : "Rally Index"}</p>
+        <p className="font-medium">
+          {showPlayerRanks && showRallyIndex
+            ? "Ranking"
+            : showRallyIndex
+              ? "Rally Index"
+              : "Ranking"}
+        </p>
         <p className="mt-2 inline-flex flex-wrap items-center gap-1.5 text-zinc-700">
-          {showPlayerRanks ? (
-            <>
-              <RankGlyph rank={scores.rank} size={18} />
-              <span>· CALC {scores.overall.toFixed(2)} ·</span>
-            </>
-          ) : (
+          {showPlayerRanks ? <RankGlyph rank={scores.rank} size={18} /> : null}
+          {showRallyIndex ? (
             <span className="font-semibold tabular-nums">{rallyLabel}</span>
-          )}
+          ) : showPlayerRanks ? (
+            <span>· CALC {scores.overall.toFixed(2)} ·</span>
+          ) : null}
           <LeaningIcon leaning={scores.leaning} />
         </p>
         <p className="mt-1 text-zinc-600">
@@ -644,7 +654,8 @@ export function DraftBoardView({
   const rosterMovesEnabled = isAdmin && !adminReadOnly;
   const isDarkRoom = mode === "captain";
   const playerRanksEnabled = draftState.draft.displaySettings.playerRanksEnabled !== false;
-  const showRallyIndex = !playerRanksEnabled;
+  const showRallyOnPool = draftState.draft.displaySettings.showRallyOnPool === true;
+  const showRallyOnRoster = draftState.draft.displaySettings.showRallyOnRoster === true;
   const rallyModifier = parseRallyModifier(draftState.draft.displaySettings.rallyModifier);
   const rosterAverageMetric =
     draftState.draft.displaySettings.rosterAverageMetric === "calc" ? "calc" : "rank";
@@ -859,14 +870,19 @@ export function DraftBoardView({
         <thead className="sticky top-0 z-10 border-b border-zinc-200 bg-white text-left text-xs text-zinc-500">
           <tr>
             <th className="px-3 py-2 font-medium">Name</th>
-            <th className="px-2 py-2 font-medium">{playerRanksEnabled ? "Rank" : "RAL"}</th>
+            {playerRanksEnabled ? (
+              <th className="px-2 py-2 font-medium">Rank</th>
+            ) : null}
             <th className="px-2 py-2 font-medium">Side</th>
           </tr>
         </thead>
         <tbody>
           {filteredUndrafted.length === 0 ? (
             <tr>
-              <td colSpan={3} className="px-3 py-6 text-center text-zinc-500">
+              <td
+                colSpan={1 + (playerRanksEnabled ? 1 : 0) + 1}
+                className="px-3 py-6 text-center text-zinc-500"
+              >
                 No matching players.
               </td>
             </tr>
@@ -886,21 +902,30 @@ export function DraftBoardView({
                 }}
               >
                 <td className="border-t border-zinc-100 px-3 py-1.5">
-                  {player.firstName} {player.lastName}
-                </td>
-                <td className="border-t border-zinc-100 px-2 py-1.5">
-                  {player.scores ? (
-                    playerRanksEnabled ? (
-                      <RankGlyph rank={player.scores.rank} size={display.rankGlyph} surface={theme.rankGlyphSurface} />
-                    ) : (
-                      <span className="text-xs font-semibold tabular-nums">
+                  <span className="inline-flex min-w-0 items-center gap-1.5">
+                    <span className="truncate">
+                      {player.firstName} {player.lastName}
+                    </span>
+                    {showRallyOnPool && player.scores ? (
+                      <span className="shrink-0 whitespace-nowrap text-xs font-semibold tabular-nums text-zinc-600">
                         {formatRallyIndex(player.scores.overall, rallyModifier)}
                       </span>
-                    )
-                  ) : (
-                    "—"
-                  )}
+                    ) : null}
+                  </span>
                 </td>
+                {playerRanksEnabled ? (
+                  <td className="border-t border-zinc-100 px-2 py-1.5">
+                    {player.scores ? (
+                      <RankGlyph
+                        rank={player.scores.rank}
+                        size={display.rankGlyph}
+                        surface={theme.rankGlyphSurface}
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                ) : null}
                 <td className="border-t border-zinc-100 px-2 py-1.5">
                   {player.scores ? <LeaningIcon leaning={player.scores.leaning} /> : "—"}
                 </td>
@@ -939,7 +964,7 @@ export function DraftBoardView({
           <tr>
             <th className={`${display.headCell} font-medium`}>Player</th>
             <th className={`${display.headCell} font-medium`}>
-              {playerRanksEnabled ? "Rank" : "RAL"}
+              {playerRanksEnabled ? "Rank" : "—"}
             </th>
             <th className={`${display.headCell} text-right font-medium`}>
               <span className="inline-flex items-center justify-end gap-1.5">
@@ -961,7 +986,7 @@ export function DraftBoardView({
             </th>
             <th className={`${display.headCell} text-right font-medium`}>
               <span className="inline-flex items-center justify-end gap-1.5">
-                {playerRanksEnabled ? "CAL" : "RAL"}
+                {showRallyOnPool ? "RAL" : "CAL"}
                 <CalcStatGlyph size={display.rankGlyphSm} />
               </span>
             </th>
@@ -988,14 +1013,8 @@ export function DraftBoardView({
                     </span>
                   </td>
                   <td className={`border-t ${theme.tableRowBorder} ${display.cell}`}>
-                    {scores ? (
-                      playerRanksEnabled ? (
-                        <RankGlyph rank={scores.rank} size={display.rankGlyph} surface={theme.rankGlyphSurface} />
-                      ) : (
-                        <span className="text-xs font-semibold tabular-nums">
-                          {formatRallyIndex(scores.overall, rallyModifier)}
-                        </span>
-                      )
+                    {scores && playerRanksEnabled ? (
+                      <RankGlyph rank={scores.rank} size={display.rankGlyph} surface={theme.rankGlyphSurface} />
                     ) : (
                       "—"
                     )}
@@ -1019,17 +1038,15 @@ export function DraftBoardView({
                     className={`border-t ${theme.tableRowBorder} ${display.cell} text-right tabular-nums ${isBoard ? `font-semibold ${theme.scoreCalc}` : theme.score}`}
                   >
                     {scores
-                      ? showDraftCalcDisplay
-                        ? playerRanksEnabled
+                      ? showRallyOnPool
+                        ? formatRallyIndex(scores.overall, rallyModifier)
+                        : showDraftCalcDisplay
                           ? formatCalcRankDisplay(
                               scores.overall,
                               scores.rank,
                               draftState.draft.rankThresholds,
                             )
-                          : formatRallyIndex(scores.overall, rallyModifier)
-                        : playerRanksEnabled
-                          ? scores.overall.toFixed(2)
-                          : formatRallyIndex(scores.overall, rallyModifier)
+                          : scores.overall.toFixed(2)
                       : "—"}
                   </td>
                 </tr>
@@ -1114,7 +1131,22 @@ export function DraftBoardView({
             >
               {team.roster.length}/{team.targetRosterSize} players
             </p>
-            {areQuotasEnabled(state.draft) ? (
+            {isAdmin ? (
+              <div className={`mt-1.5 space-y-0.5 text-xs tabular-nums ${theme.cardMeta}`}>
+                <p>
+                  {rosterAverageLabel(rosterAverageMetric)}:{" "}
+                  {formatRosterAverageValue(team.stats, rosterAverageMetric, rosterAvgModifier)}
+                </p>
+                <p>
+                  Total RAL:{" "}
+                  {formatTotalRallyIndex(
+                    team.roster.map((player) => player.overall),
+                    rallyModifier,
+                  )}
+                </p>
+              </div>
+            ) : null}
+            {areQuotasEnabled(state.draft) && playerRanksEnabled ? (
               <div className={`mt-2 ${display.cardMeta}`}>
                 <TeamQuotaTable
                   quotaNeed={team.quotaNeed}
@@ -1167,8 +1199,9 @@ export function DraftBoardView({
                           size={display.rosterRankGlyph}
                           surface={theme.rankGlyphSurface}
                         />
-                      ) : showRallyIndex ? (
-                        <span className="text-[11px] font-semibold tabular-nums">
+                      ) : null}
+                      {showRallyOnRoster && !isAdmin ? (
+                        <span className="shrink-0 whitespace-nowrap text-[11px] font-semibold tabular-nums">
                           {formatRallyIndex(p.overall, rallyModifier)}
                         </span>
                       ) : null}
@@ -1325,6 +1358,7 @@ export function DraftBoardView({
               viewOnly={adminReadOnly}
               currentTeamName={selectedRosterFromTeam?.captainName ?? null}
               showPlayerRanks={playerRanksEnabled}
+              showRallyIndex={showRallyOnPool || showRallyOnRoster}
               rallyModifierRaw={draftState.draft.displaySettings.rallyModifier ?? ""}
               moveControls={
                 adminReadOnly
@@ -1425,6 +1459,7 @@ export function DraftBoardView({
             forceWarnings={forceWarnings}
             viewOnly={adminReadOnly}
             showPlayerRanks={playerRanksEnabled}
+            showRallyIndex={showRallyOnPool || showRallyOnRoster}
             rallyModifierRaw={draftState.draft.displaySettings.rallyModifier ?? ""}
           />
         </div>

@@ -32,10 +32,12 @@ export function redactPublicDraftState(
   const playerRanksEnabled = settings.playerRanksEnabled ?? true;
   const showRanks = playerRanksEnabled && settings.publicShowRanks;
   const showSkills = settings.publicShowSkillRatings;
-  // When ranks are disabled, keep overall so public cards can show Rally Index (RAL).
-  const keepOverall = showSkills || !playerRanksEnabled;
+  const showRally =
+    settings.showRallyOnPool === true || settings.showRallyOnRoster === true;
+  // Keep overall when skills or RAL display needs it.
+  const keepOverall = showSkills || showRally;
 
-  if (showRanks && showSkills && playerRanksEnabled) {
+  if (showRanks && showSkills && !showRally) {
     return state;
   }
 
